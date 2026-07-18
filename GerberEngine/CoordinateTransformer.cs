@@ -1,6 +1,6 @@
-﻿// GerberEngine/CoordinateTransformer.cs
-// FR-008, FR-009: mm <-> pixels according to DPI; image in Gerber coordinate system (Y up, any angle)
-// to image coordinate system (top-left, Y down), perhaps (margin) so the image is not cropped.
+// GerberEngine/CoordinateTransformer.cs
+// FR-008, FR-009: mm <-> pixel theo DPI; anh xa he toa do Gerber (Y len, goc bat ky)
+// sang he toa do anh (goc top-left, Y xuong), co le (margin) de anh khong bi cat lem.
 using System;
 using System.Drawing;
 
@@ -8,8 +8,7 @@ namespace GerberEngine
 {
     public sealed class CoordinateTransformer
     {
-        // bbox says (mm, he Gerber)
-        private readonly RectangleD _boundsMm;
+        private readonly RectangleD _boundsMm;   // bbox noi dung (mm, he Gerber)
         private readonly double _marginMm;
         private readonly double _scale;          // px per mm
 
@@ -20,40 +19,28 @@ namespace GerberEngine
 
         public CoordinateTransformer(RectangleD boundsMm, int dpi, double marginMm)
         {
-            if (boundsMm.IsEmpty)
-                throw new ArgumentException("The bounding box is empty - there is no content to render.");
-            if (dpi <= 0)
-                throw new ArgumentOutOfRangeException("dpi");
-            this._boundsMm = boundsMm;
-            this._marginMm = marginMm;
+            if (boundsMm.IsEmpty) throw new ArgumentException("Bounding box rong - khong co noi dung de render.");
+            if (dpi <= 0) throw new ArgumentOutOfRangeException("dpi");
+            _boundsMm = boundsMm;
+            _marginMm = marginMm;
             Dpi = dpi;
             _scale = dpi / 25.4;
             PixelWidth = Math.Max(1, (int)Math.Ceiling((boundsMm.Width + 2 * marginMm) * _scale));
             PixelHeight = Math.Max(1, (int)Math.Ceiling((boundsMm.Height + 2 * marginMm) * _scale));
         }
-        /// <summary>
-        /// Convert lengths from millimeters to pixels.
-        /// </summary>
-        /// <param name="mm"></param>
-        /// <returns></returns>
+
+        /// <summary>Quy doi do dai mm sang pixel.</summary>
         public float MmToPx(double mm) { return (float)(mm * _scale); }
-        /// <summary>
-        /// Gerber point (mm, Y up) -> image point (px, Y down, top-left corner).
-        /// </summary>
-        /// <param name="mm"></param>
-        /// <returns></returns>
+
+        /// <summary>Diem Gerber (mm, Y len) -> diem anh (px, Y xuong, goc top-left).</summary>
         public PointF ToPixel(PointD mm)
         {
             float x = (float)((mm.X - _boundsMm.MinX + _marginMm) * _scale);
             float y = (float)((_boundsMm.MaxY - mm.Y + _marginMm) * _scale);
             return new PointF(x, y);
         }
-        /// <summary>
-        /// Conversely: pixel points (px) -> Gerber coordinates (mm). Do not display mouse coordinates (FR-009).
-        /// </summary>
-        /// <param name="px"></param>
-        /// <param name="py"></param>
-        /// <returns></returns>
+
+        /// <summary>Nguoc lai: diem anh (px) -> toa do Gerber (mm). Dung hien thi toa do chuot (FR-009).</summary>
         public PointD ToMm(float px, float py)
         {
             double x = px / _scale + _boundsMm.MinX - _marginMm;

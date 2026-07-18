@@ -1,22 +1,15 @@
-﻿// GerberEngine/GerberModels.cs
-// GerberEngine's data type. DO NOT reference System.Windows.Forms (NFR-004).
-// Every prescription/size is specified as MILIMET (FR-007).
+// GerberEngine/GerberModels.cs
+// Kieu du lieu loi cua GerberEngine. KHONG tham chieu System.Windows.Forms (NFR-004).
+// Moi toa do/kich thuoc noi bo deu la MILIMET (FR-007).
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Drawing;
 
 namespace GerberEngine
 {
-    public enum GerberUnit
-    {
-        Millimeter, Inch
-    }
+    public enum GerberUnit { Millimeter, Inch }
 
-    // LPD / LPC
-    public enum GerberPolarity { Dark, Clear }
+    public enum GerberPolarity { Dark, Clear }          // LPD / LPC (FR-013)
 
     public enum ColorMode { BinaryMask, Realistic }     // FR-011
 
@@ -29,18 +22,16 @@ namespace GerberEngine
         TopSilkscreen, BottomSilkscreen,
         BoardOutline, Drill, Unknown
     }
-    /// <summary>
-    /// 2D point with double accuracy (mm).
-    /// </summary>
+
+    /// <summary>Diem 2D do chinh xac kep (mm).</summary>
     public struct PointD
     {
         public double X, Y;
         public PointD(double x, double y) { X = x; Y = y; }
         public override string ToString() { return "(" + X + ", " + Y + ")"; }
     }
-    /// <summary>
-    /// Bounding box mm (instead of RectangleF for accuracy).
-    /// </summary>
+
+    /// <summary>Bounding box mm (thay cho RectangleF de giu chinh xac).</summary>
     public struct RectangleD
     {
         public double MinX, MinY, MaxX, MaxY;
@@ -71,23 +62,23 @@ namespace GerberEngine
             MinX -= d; MinY -= d; MaxX += d; MaxY += d;
         }
     }
-    /// <summary>
-    /// Defining aperture macro (AM command) - saving block sizes, evaluating during flash (FR-006).
-    /// </summary>
+
+    /// <summary>Dinh nghia aperture macro (lenh AM) - luu block tho, evaluate khi flash (FR-006).</summary>
     public sealed class ApertureMacro
     {
         public string Name;
         public List<string> Blocks = new List<string>();  // moi phan tu la 1 primitive/variable line
     }
 
+    /// <summary>Aperture (lenh AD). Parameters da quy doi ve mm.</summary>
     public sealed class Aperture
     {
         public int Code;                      // D10..D999
         public ApertureShape Shape;
         public double[] Parameters = new double[0]; // C: [dia,(hole)] R/O: [w,h,(hole)] P: [dia,vertices,(rot),(hole)]
-        public ApertureMacro Macro;           // when Shape == Macro
-        public double[] MacroArgs = new double[0]; // Keep the file unit (the macro itself should use the same unit).
-        public double MacroUnitScale = 1.0;   // The file unit conversion factor is mm (1.0 or 25.4).
+        public ApertureMacro Macro;           // khi Shape == Macro
+        public double[] MacroArgs = new double[0]; // GIU NGUYEN don vi file (than macro dung cung don vi)
+        public double MacroUnitScale = 1.0;   // he so quy doi don vi file -> mm (1.0 hoac 25.4)
 
         public double StrokeDiameter
         {
@@ -100,15 +91,16 @@ namespace GerberEngine
             }
         }
     }
-    // ----- Primitive: parse result, command with mm, origin by Gerber (Y direction) -----
+
+    // ----- Primitive: ket qua parse, don vi mm, goc toa do Gerber (Y huong len) -----
+
     public abstract class GerberPrimitive
     {
         public GerberPolarity Polarity = GerberPolarity.Dark;
         public abstract RectangleD GetBoundsMm();
     }
-    /// <summary>
-    /// D03 - flash aperture at one point.
-    /// </summary>
+
+    /// <summary>D03 - flash aperture tai mot diem.</summary>
     public sealed class FlashPrimitive : GerberPrimitive
     {
         public PointD Position;
@@ -138,15 +130,14 @@ namespace GerberEngine
 
         private double EstimateMacroRadius()
         {
-            // Safety degradation for unsupported macros (FR-006)
+            // Suy giam an toan cho macro chua ho tro (FR-006)
             double r = 0;
             foreach (double a in Aperture.MacroArgs) r = Math.Max(r, Math.Abs(a) * Aperture.MacroUnitScale);
             return Math.Max(r, 1.0);
         }
     }
-    /// <summary>
-    /// D01 Linear (G01) - drawing using aperture.
-    /// </summary>
+
+    /// <summary>D01 tuyen tinh (G01) - net ve bang aperture.</summary>
     public sealed class StrokePrimitive : GerberPrimitive
     {
         public PointD Start, End;
@@ -161,9 +152,8 @@ namespace GerberEngine
             return b;
         }
     }
-    /// <summary>
-    /// D01 arc (G02/G03).
-    /// </summary>
+
+    /// <summary>D01 cung tron (G02/G03).</summary>
     public sealed class ArcPrimitive : GerberPrimitive
     {
         public PointD Start, End, Center;
@@ -189,9 +179,8 @@ namespace GerberEngine
             return b;
         }
     }
-    /// <summary>
-    /// A segment within the contour of a region: a line or arc to the end point.
-    /// </summary>
+
+    /// <summary>Mot doan trong contour cua region: line hoac arc toi diem End.</summary>
     public struct RegionSegment
     {
         public PointD End;
@@ -199,17 +188,15 @@ namespace GerberEngine
         public PointD Center;
         public bool Clockwise;
     }
-    /// <summary>
-    /// A unique contour of the region (G36..G37).
-    /// </summary>
+
+    /// <summary>Mot contour kin cua region (G36..G37).</summary>
     public sealed class RegionContour
     {
         public PointD Start;
         public List<RegionSegment> Segments = new List<RegionSegment>();
     }
-    /// <summary>
-    /// fill G36/G37 - polygon pour (FR-014).
-    /// </summary>
+
+    /// <summary>Vung fill G36/G37 - polygon pour (FR-014).</summary>
     public sealed class RegionPrimitive : GerberPrimitive
     {
         public List<RegionContour> Contours = new List<RegionContour>();
@@ -235,9 +222,8 @@ namespace GerberEngine
             return b;
         }
     }
-    /// <summary>
-    /// A Gerber layer parses (one file = one layer, FR-003).
-    /// </summary>
+
+    /// <summary>Mot lop Gerber da parse (mot file = mot layer, FR-003).</summary>
     public sealed class GerberLayer
     {
         public string FilePath;

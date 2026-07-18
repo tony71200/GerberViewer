@@ -1,22 +1,21 @@
-﻿// GerberEngine/GerberParser.cs
+// GerberEngine/GerberParser.cs
 // Parser RS-274X / Gerber X2 (FR-001, FR-002, FR-007, NFR-003).
-// Output: GerberLayer with primitives that adjust the height and angle of Gerber (Y len).
+// Dau ra: GerberLayer voi primitive da chuan hoa ve mm, goc toa do Gerber (Y len).
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace GerberEngine
 {
     public sealed class GerberParser
     {
         private const double InchToMm = 25.4;
-        // parser status
+
+        // Trang thai parser
         private GerberUnit _unit = GerberUnit.Millimeter;
-        private int _intDigits = 3, _decDigits = 6; // FSLA default
+        private int _intDigits = 3, _decDigits = 6;   // FSLA mac dinh hop ly
         private GerberPolarity _polarity = GerberPolarity.Dark;
         private int _interpolation = 1;               // 1=G01 linear, 2=G02 CW, 3=G03 CCW
         private bool _inRegion;
@@ -28,11 +27,8 @@ namespace GerberEngine
         private RegionContour _contour;
         private GerberLayer _layer;
         private int _lineNo;
-        /// <summary>
-        /// Parse a Gerber file into a GerberLayer. Do not throw an exception for the singular syntax error (NFR-003).
-        /// </summary>
-        /// <param name="path"></param>
-        /// <returns></returns>
+
+        /// <summary>Parse mot file Gerber thanh GerberLayer. Khong nem exception voi loi cu phap don le (NFR-003).</summary>
         public GerberLayer ParseFile(string path)
         {
             _layer = new GerberLayer { FilePath = path, FileName = Path.GetFileName(path) };
@@ -94,6 +90,7 @@ namespace GerberEngine
         }
 
         // ---------- Extended commands (%...%) ----------
+
         private void HandleExtended(string block)
         {
             // Mot block co the chua nhieu lenh phan cach '*'
@@ -181,7 +178,7 @@ namespace GerberEngine
                     }
                     else
                     {
-                        Warn("Aperture macro not yet defined: " + shapeName + " -> thay bang Circle 0.1mm");
+                        Warn("Aperture macro chua dinh nghia: " + shapeName + " -> thay bang Circle 0.1mm");
                         ap.Shape = ApertureShape.Circle;
                         ap.Parameters = new double[] { 0.1 };
                     }
@@ -218,7 +215,7 @@ namespace GerberEngine
             if (cmd == "G90" || cmd == "G91") return;                // absolute/incremental (chi ho tro absolute)
 
             int i = 0;
-            // G-codes command
+            // G-codes dau lenh
             while (i < cmd.Length && cmd[i] == 'G')
             {
                 int j = i + 1;
@@ -232,7 +229,7 @@ namespace GerberEngine
             }
             if (i >= cmd.Length) return;
 
-            // "Dnn" does not include coordinates: nn>=10 la chon aperture; D01/D02/D03 tran thao tac tai diem hien hanh
+            // "Dnn" khong kem toa do: nn>=10 la chon aperture; D01/D02/D03 tran thao tac tai diem hien hanh
             if (cmd[i] == 'D' && !ContainsCoord(cmd, i))
             {
                 int code = int.Parse(cmd.Substring(i + 1), CultureInfo.InvariantCulture);
@@ -243,7 +240,7 @@ namespace GerberEngine
                 return;
             }
 
-            // Coordinate command + D01/D02/D03
+            // Lenh toa do + D01/D02/D03
             double? x = null, y = null, iOfs = null, jOfs = null;
             int dCode = -1;
             while (i < cmd.Length)
@@ -288,7 +285,7 @@ namespace GerberEngine
 
         private double ParseCoord(string num)
         {
-            // Omit leading zeros (normalization): value = int / 10^decDigits
+            // Omit leading zeros (chuan hien hanh): gia tri = int / 10^decDigits
             if (string.IsNullOrEmpty(num)) return 0;
             long v = long.Parse(num, CultureInfo.InvariantCulture);
             double val = v / Math.Pow(10, _decDigits);
@@ -314,7 +311,8 @@ namespace GerberEngine
             }
         }
 
-        // ---------- Drawing operations ----------
+        // ---------- Thao tac ve ----------
+
         private void MoveTo(PointD p)
         {
             if (_inRegion) CloseContourAndStartNew(p);
@@ -342,22 +340,17 @@ namespace GerberEngine
                 {
                     _layer.Primitives.Add(new StrokePrimitive
                     {
-                        Start = _current,
-                        End = target,
-                        Aperture = _currentAperture,
-                        Polarity = _polarity
+                        Start = _current, End = target, Aperture = _currentAperture, Polarity = _polarity
                     });
                 }
                 else
                 {
                     _layer.Primitives.Add(new ArcPrimitive
                     {
-                        Start = _current,
-                        End = target,
+                        Start = _current, End = target,
                         Center = new PointD(_current.X + iOfs, _current.Y + jOfs),
                         Clockwise = _interpolation == 2,
-                        Aperture = _currentAperture,
-                        Polarity = _polarity
+                        Aperture = _currentAperture, Polarity = _polarity
                     });
                 }
             }
@@ -366,7 +359,7 @@ namespace GerberEngine
 
         private void Flash(PointD p)
         {
-            if (_currentAperture == null) { Warn("D03 before selecting aperture"); SelectAperture(10); }
+            if (_currentAperture == null) { Warn("D03 truoc khi chon aperture"); SelectAperture(10); }
             _layer.Primitives.Add(new FlashPrimitive { Position = p, Aperture = _currentAperture, Polarity = _polarity });
             _current = p;
         }
@@ -386,7 +379,7 @@ namespace GerberEngine
 
         private void CloseContourAndStartNew(PointD newStart)
         {
-            _contour = null; // contour finished; A new contour begins when D01 follows.
+            _contour = null; // contour ket thuc; contour moi bat dau khi co D01 tiep theo
         }
 
         private void EndRegion()
@@ -398,9 +391,8 @@ namespace GerberEngine
             _contour = null;
         }
     }
-    /// <summary>
-    /// Recognize the X2 FileFunction file type or file name (FR-002).
-    /// </summary>
+
+    /// <summary>Nhan dien loai lop tu X2 FileFunction hoac ten file (FR-002).</summary>
     public static class LayerTypeDetector
     {
         public static LayerType DetectFromX2(string tf)

@@ -1,13 +1,10 @@
-﻿// GerberEngine/GerberRenderer.cs
-// Rasterize GerberLayer using GDI+ (FR-005, FR-011, FR-014).
-// Polarity strategy (FR-013): render each layer into a separate 32bppArgb bitmap, so it should be transparent;
-// LPC/exposure-off to CompositingMode.SourceCopy + transparent color => EXAMINE within the layer area,
-// then composite the layers on top of each other => do not excavate through the underlying layer.
+// GerberEngine/GerberRenderer.cs
+// Raster hoa GerberLayer bang GDI+ (FR-005, FR-011..FR-014).
+// Chien luoc polarity (FR-013): moi lop render vao bitmap 32bppArgb RIENG, nen trong suot;
+// LPC/exposure-off ve bang CompositingMode.SourceCopy + mau trong suot => KHOET dung pham vi lop,
+// sau do composite cac lop len nhau => khong khoet xuyen lop duoi.
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -16,20 +13,12 @@ namespace GerberEngine
 {
     public sealed class GerberRenderer
     {
-        /// <summary>
-        /// Pixel limits to avoid OutOfMemory in GDI+ (Spec 5.1.2). 
-        /// ~1 GB @ 4 bytes/px.
-        /// </summary>
-        public const long MaxPixels = 520000000L;
+        /// <summary>Gioi han pixel de tranh OutOfMemory GDI+ (Spec 5.1.2). ~1 GB @ 4 byte/px.</summary>
+        public const long MaxPixels = 260000000L;
 
         // ---------- API render ----------
-        /// <summary>
-        /// Rendering a layer onto a bitmap should be TRANSPARENT (for composites).
-        /// </summary>
-        /// <param name="layer"></param>
-        /// <param name="t"></param>
-        /// <param name="foreColor"></param>
-        /// <returns></returns>
+
+        /// <summary>Render mot lop len bitmap nen TRONG SUOT (dung cho composite).</summary>
         public Bitmap RenderLayerTransparent(GerberLayer layer, CoordinateTransformer t, Color foreColor)
         {
             Bitmap bmp = CreateBitmap(t);
@@ -40,14 +29,8 @@ namespace GerberEngine
             }
             return bmp;
         }
-        /// <summary>
-        /// Render a single layer on top of a solid (output layer/binary mask, FR-011.1).
-        /// </summary>
-        /// <param name="layer"></param>
-        /// <param name="t"></param>
-        /// <param name="foreColor"></param>
-        /// <param name="background"></param>
-        /// <returns></returns>
+
+        /// <summary>Render mot lop tren nen dac (xuat don lop / binary mask, FR-011.1).</summary>
         public Bitmap RenderLayerOpaque(GerberLayer layer, CoordinateTransformer t, Color foreColor, Color background)
         {
             Bitmap bmp = CreateBitmap(t);
@@ -59,15 +42,8 @@ namespace GerberEngine
             }
             return bmp;
         }
-        /// <summary>
-        /// Composite the visible layers in the order listed (bottom -> top) (FR-012).
-        /// </summary>
-        /// <param name="layers"></param>
-        /// <param name="t"></param>
-        /// <param name="mode"></param>
-        /// <param name="background"></param>
-        /// <param name="progress"></param>
-        /// <returns></returns>
+
+        /// <summary>Composite cac lop visible theo thu tu danh sach (duoi -> tren) (FR-012).</summary>
         public Bitmap RenderCombined(IList<GerberLayer> layers, CoordinateTransformer t, ColorMode mode,
                                      Color background, Action<int, int> progress)
         {
@@ -88,12 +64,8 @@ namespace GerberEngine
             }
             return bmp;
         }
-        /// <summary>
-        /// Default realistic color chart according to tire type (FR-011.2).
-        /// </summary>
-        /// <param name="type"></param>
-        /// <param name="mode"></param>
-        /// <returns></returns>
+
+        /// <summary>Bang mau realistic mac dinh theo loai lop (FR-011.2).</summary>
         public static Color DefaultColor(LayerType type, ColorMode mode)
         {
             if (mode == ColorMode.BinaryMask) return Color.White;
@@ -111,12 +83,11 @@ namespace GerberEngine
                 default: return Color.Gold;
             }
         }
-        /// <summary>
-        /// FR4+mask
-        /// </summary>
-        public static Color RealisticBackground { get { return Color.FromArgb(10, 45, 25); } }
 
-        // ---------- Drawing Error ----------
+        public static Color RealisticBackground { get { return Color.FromArgb(10, 45, 25); } } // nen FR4+mask
+
+        // ---------- Loi ve ----------
+
         private static int CountVisible(IList<GerberLayer> layers)
         {
             int n = 0;
@@ -129,10 +100,11 @@ namespace GerberEngine
             long px = (long)t.PixelWidth * t.PixelHeight;
             if (px > MaxPixels)
                 throw new InvalidOperationException(
-                    "Image Size " + t.PixelWidth + "x" + t.PixelHeight +
-                    " Exceed the GDI+ memory limit. Reduce the DPI or export in layers.");
+                    "Kich thuoc anh " + t.PixelWidth + "x" + t.PixelHeight +
+                    " vuot gioi han bo nho GDI+. Hay giam DPI hoac xuat tung lop.");
             return new Bitmap(t.PixelWidth, t.PixelHeight, PixelFormat.Format32bppArgb);
         }
+
         private static Graphics CreateGraphics(Bitmap bmp)
         {
             Graphics g = Graphics.FromImage(bmp);
@@ -186,12 +158,11 @@ namespace GerberEngine
             pen.LineJoin = LineJoin.Round;
             return pen;
         }
+
         /// <summary>
-        /// Shift Gerber arc (Y up) to GDI+ angle (Y down):
-        /// GDI angle = -Gerber angle; G03 (CCW Gerber) => negative GDI sweep, G02 => positive.        /// </summary>
-        /// <param name="a"></param>
-        /// <param name="t"></param>
-        /// <returns></returns>
+        /// Chuyen cung tron Gerber (Y len) sang goc GDI+ (Y xuong):
+        /// goc GDI = -goc Gerber; G03 (CCW Gerber) => sweep GDI am, G02 => duong.
+        /// </summary>
         private GraphicsPath BuildArcPath(ArcPrimitive a, CoordinateTransformer t)
         {
             PointF c = t.ToPixel(a.Center);
@@ -308,14 +279,8 @@ namespace GerberEngine
             using (var b = new SolidBrush(col))
                 g.FillEllipse(b, center.X - w / 2, center.Y - h / 2, w, h);
         }
-        /// <summary>
-        /// Create a hole in the aperture (hole parameter at the end of AD) using a transparent SourceCopy.
-        /// </summary>
-        /// <param name="g"></param>
-        /// <param name="pos"></param>
-        /// <param name="t"></param>
-        /// <param name="p"></param>
-        /// <param name="holeIndex"></param>
+
+        /// <summary>Khoet lo trong aperture (tham so hole o cuoi AD) bang SourceCopy trong suot.</summary>
         private static void EraseHole(Graphics g, PointF pos, CoordinateTransformer t, double[] p, int holeIndex)
         {
             if (p.Length <= holeIndex || p[holeIndex] <= 0) return;
@@ -339,13 +304,8 @@ namespace GerberEngine
             path.CloseFigure();
             return path;
         }
-        /// <summary>
-        /// G36/G37 polygon pour: fill Winding, contour can be flat (FR-014).
-        /// </summary>
-        /// <param name="g"></param>
-        /// <param name="region"></param>
-        /// <param name="t"></param>
-        /// <param name="col"></param>
+
+        /// <summary>G36/G37 polygon pour: fill Winding, contour co the chua cung tron (FR-014).</summary>
         private void DrawRegion(Graphics g, RegionPrimitive region, CoordinateTransformer t, Color col)
         {
             using (var path = new GraphicsPath(FillMode.Winding))
@@ -360,9 +320,7 @@ namespace GerberEngine
                         {
                             var arc = new ArcPrimitive
                             {
-                                Start = cur,
-                                End = seg.End,
-                                Center = seg.Center,
+                                Start = cur, End = seg.End, Center = seg.Center,
                                 Clockwise = seg.Clockwise,
                                 Aperture = new Aperture { Shape = ApertureShape.Circle, Parameters = new double[] { 0 } }
                             };

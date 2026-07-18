@@ -1,9 +1,8 @@
-﻿// GerberEngine/ApertureMacroProcessor.cs
-// FR-006: Uses Aperture Macro (AM) shape. Supports primitives 1, 4, 5, 20, 21;
-// Primitives 6/7 degrade safety; error -> warning, no exception thrown during rendering.
-// Output: GraphicsPath in LOCAL COORDINATES mm (angle = aperture center, UPWARD DIRECTION);
-// GerberRenderer is responsible for scaling/flipping/translating to pixels.
-
+// GerberEngine/ApertureMacroProcessor.cs
+// FR-006: dung hinh Aperture Macro (AM). Ho tro primitive 1, 4, 5, 20, 21;
+// primitive 6/7 suy giam an toan; loi -> canh bao, khong nem exception pha render.
+// Dau ra: GraphicsPath trong TOA DO CUC BO mm (goc = tam aperture, Y HUONG LEN);
+// GerberRenderer chiu trach nhiem scale/flip/translate sang pixel.
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -24,8 +23,7 @@ namespace GerberEngine
         {
             var shapes = new List<MacroShape>();
             var vars = new Dictionary<int, double>();
-            for (int i = 0; i < args.Length; i++)
-                vars[i + 1] = args[i];
+            for (int i = 0; i < args.Length; i++) vars[i + 1] = args[i];
 
             foreach (string rawBlock in macro.Blocks)
             {
@@ -34,9 +32,10 @@ namespace GerberEngine
                 try
                 {
                     if (block.StartsWith("0")) continue; // comment primitive
+
                     if (block.StartsWith("$"))
                     {
-                        // The value of $3 is $3 = $1 + $2 x 0.5
+                        // Gan bien: $3=$1+$2x0.5
                         int eq = block.IndexOf('=');
                         int id = int.Parse(block.Substring(1, eq - 1), CultureInfo.InvariantCulture);
                         vars[id] = Eval(block.Substring(eq + 1), vars);
@@ -46,8 +45,7 @@ namespace GerberEngine
                     string[] parts = block.Split(',');
                     int code = (int)Eval(parts[0], vars);
                     double[] m = new double[parts.Length - 1];
-                    for (int i = 1; i < parts.Length; i++)
-                        m[i - 1] = Eval(parts[i], vars);
+                    for (int i = 1; i < parts.Length; i++) m[i - 1] = Eval(parts[i], vars);
 
                     switch (code)
                     {
@@ -56,12 +54,11 @@ namespace GerberEngine
                         case 5: shapes.Add(Polygon(m, unitScale)); break;
                         case 20: shapes.Add(VectorLine(m, unitScale)); break;
                         case 21: shapes.Add(CenterLine(m, unitScale)); break;
-
-                        case 6: // Moire - decline: outer circle
+                        case 6: // Moire - suy giam: vong tron ngoai
                             warnings.Add("Macro '" + macro.Name + "': primitive 6 (moire) suy giam ve circle");
                             shapes.Add(ApproxCircle(m[0], m[1], m[2], unitScale, true));
                             break;
-                        case 7: // Thermal - deterioration: dry rim (outer on, inner off)
+                        case 7: // Thermal - suy giam: vanh khan (outer on, inner off)
                             warnings.Add("Macro '" + macro.Name + "': primitive 7 (thermal) suy giam ve vanh khan");
                             shapes.Add(ApproxCircle(m[0], m[1], m[2], unitScale, true));
                             shapes.Add(ApproxCircle(m[0], m[1], m[3], unitScale, false));
@@ -71,15 +68,15 @@ namespace GerberEngine
                             break;
                     }
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    warnings.Add("Macro '" + macro.Name + "' block error (" + block + "): " + e.Message);
+                    warnings.Add("Macro '" + macro.Name + "' block loi (" + block + "): " + ex.Message);
                 }
             }
             return shapes;
         }
 
-        // ---------- Primitive builders (return local mm path) ----------
+        // ---------- Primitive builders (tra ve path mm cuc bo) ----------
 
         private static MacroShape Circle(double[] m, double s)
         {
@@ -165,7 +162,7 @@ namespace GerberEngine
             return new MacroShape { Path = p, ExposureOn = on };
         }
 
-        /// <summary>Rotate around MACRO OC (0,0) according to Gerber standard, unit of measurement.</summary>
+        /// <summary>Xoay quanh GOC MACRO (0,0) theo chuan Gerber, don vi do.</summary>
         private static void Rotate(GraphicsPath p, double degrees)
         {
             if (Math.Abs(degrees) < 1e-9) return;
@@ -176,7 +173,7 @@ namespace GerberEngine
             }
         }
 
-        // ---------- Macro expression evaluation tool: so, $n, + - x X / and parentheses ----------
+        // ---------- Bo danh gia bieu thuc macro: so, $n, + - x X / va ngoac ----------
 
         private static double Eval(string expr, Dictionary<int, double> vars)
         {

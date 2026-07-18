@@ -1,14 +1,9 @@
-// GerberViewer/GerberCanvas.cs
-// Custom double-buffered canvas (Spec 5.1.3, 5.2.2, FR-016):
-// - DrawImage bitmap cache only in OnPaint (does not re-render engine every time paint is used)
-
-// - Zoom and pan with mouse cursor, pan with mouse drag, Fit-to-view
-// Logic is here; .Designer.cs only declares the instance (does not drag-and-drop logic into Designer).
+﻿// GerberViewer/GerberCanvas.cs
+// Canvas double-buffered tuy bien (Spec 5.1.3, 5.2.2, FR-016):
+// - CHI DrawImage bitmap cache trong OnPaint (khong re-render engine moi lan paint)
+// - Zoom lan chuot neo tai con tro, pan bang keo chuot, Fit-to-view
+// Logic nam o day; .Designer.cs chi khai bao instance (khong kéo-thả logic vao Designer).
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
@@ -19,52 +14,33 @@ namespace GerberViewer
     {
         private Bitmap _image;
         private float _zoom = 1f;
-        private PointF _offset = PointF.Empty;   // original image position in the control coordinates
+        private PointF _offset = PointF.Empty;   // vi tri goc anh trong toa do control
         private Point _lastMouse;
         private bool _panning;
 
         private const float MinZoom = 0.02f, MaxZoom = 64f;
-        private readonly Pen _majorGridPen = new Pen(Color.FromArgb(42, 48, 48));
-        private readonly Pen _minorGridPen = new Pen(Color.FromArgb(25, 30, 30));
-        /// <summary>
-        /// The cursor is currently on which pixel of the image (null = outside the image). 
-        /// Use for StatusStrip (FR-009).
-        /// </summary>
+
+        /// <summary>Con tro dang o pixel nao cua ANH (null = ngoai anh). Dung cho StatusStrip (FR-009).</summary>
         public event EventHandler<PointF?> ImageCursorMoved;
 
         public GerberCanvas()
         {
-            // To disable flicker (Spec 5.1.3), press MouseWheel (5.1.6).
+            // Bat buoc de khong flicker (Spec 5.1.3) va nhan MouseWheel (5.1.6)
             SetStyle(ControlStyles.OptimizedDoubleBuffer
                    | ControlStyles.AllPaintingInWmPaint
                    | ControlStyles.UserPaint
                    | ControlStyles.ResizeRedraw
                    | ControlStyles.Selectable, true);
-            BackColor = Color.FromArgb(12, 14, 14);
+            BackColor = Color.FromArgb(30, 30, 30);
         }
-        /// <summary>
-        /// Live bitmap cache new. 
-        /// Canvas bitmap and dispose of original (Spec 5.1.7).
-        /// </summary>
-        /// <param name="bmp"></param>
-        /// <param name="fit"></param>
+
+        /// <summary>Gan bitmap cache moi. Canvas SO HUU bitmap va dispose ban cu (Spec 5.1.7).</summary>
         public void SetImage(Bitmap bmp, bool fit)
         {
             Bitmap old = _image;
             _image = bmp;
             if (old != null && !ReferenceEquals(old, bmp)) old.Dispose();
             if (fit) FitToView(); else Invalidate();
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                if (_image != null) { _image.Dispose(); _image = null; }
-                _majorGridPen.Dispose();
-                _minorGridPen.Dispose();
-            }
-            base.Dispose(disposing);
         }
 
         public bool HasImage { get { return _image != null; } }
@@ -81,23 +57,21 @@ namespace GerberViewer
             Invalidate();
         }
 
-        #region Drawing
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            Graphics g = e.Graphics;
-            DrawGrid(g);
             if (_image == null)
             {
-                TextRenderer.DrawText(g,
-                    "Drop Gerber files here or click Open",
-                    Font, ClientRectangle, Color.FromArgb(130, 140, 140),
+                TextRenderer.DrawText(e.Graphics,
+                    "Keo-tha file Gerber vao day hoac dung nut Open",
+                    Font, ClientRectangle, Color.Gray,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
                 return;
             }
-            // Keep preview smooth while zoom/pan transform is immediate; export DPI is independent.
-            g.InterpolationMode = _zoom >= 2f ? InterpolationMode.HighQualityBicubic : InterpolationMode.HighQualityBilinear;
-            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            Graphics g = e.Graphics;
+            // Phong to > 2x dung NearestNeighbor de soi net; thu nho dung Bilinear
+            g.InterpolationMode = _zoom >= 2f ? InterpolationMode.NearestNeighbor : InterpolationMode.HighQualityBilinear;
+            g.PixelOffsetMode = PixelOffsetMode.Half;
             g.DrawImage(_image,
                 new RectangleF(_offset.X, _offset.Y, _image.Width * _zoom, _image.Height * _zoom));
         }
@@ -155,16 +129,6 @@ namespace GerberViewer
             EventHandler<PointF?> h = ImageCursorMoved;
             if (h != null) h(this, null);
         }
-        #endregion Drawing
-
-        #region Private
-        private void DrawGrid(Graphics g)
-        {
-            int minor = 16;
-            int major = minor * 5;
-            for (int x = 0; x < Width; x += minor) g.DrawLine((x % major) == 0 ? _majorGridPen : _minorGridPen, x, 0, x, Height);
-            for (int y = 0; y < Height; y += minor) g.DrawLine((y % major) == 0 ? _majorGridPen : _minorGridPen, 0, y, Width, y);
-        }
 
         private void RaiseCursor(Point mouse)
         {
@@ -181,6 +145,11 @@ namespace GerberViewer
         {
             return Math.Max(MinZoom, Math.Min(MaxZoom, z));
         }
-        #endregion Private
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && _image != null) { _image.Dispose(); _image = null; }
+            base.Dispose(disposing);
+        }
     }
 }

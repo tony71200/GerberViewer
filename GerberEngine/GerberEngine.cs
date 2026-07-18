@@ -1,7 +1,7 @@
-﻿// GerberEngine/GerberEngine.cs
-// GerberEngine's public FACADE API (BR-003, NFR-004).
-// This is a stable contract for reuse: WinForms app, console tool, service...
-// Depends only on System.Drawing - NOT dependent on System.Windows.Forms.
+// GerberEngine/GerberEngine.cs
+// FACADE API cong khai cua GerberEngine (BR-003, NFR-004).
+// Day la hop dong on dinh de tai su dung: WinForms app, console tool, service...
+// Chi phu thuoc System.Drawing - KHONG phu thuoc System.Windows.Forms.
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -9,16 +9,14 @@ using System.Drawing.Imaging;
 
 namespace GerberEngine
 {
-    /// <summary>
-    /// Render/export options (FR-010, FR-011).
-    /// </summary>
+    /// <summary>Tuy chon render/xuat anh (FR-010, FR-011).</summary>
     public sealed class RenderOptions
     {
         public int Dpi = 600;                            // 150/300/600/1200
         public ColorMode Mode = ColorMode.Realistic;
         public double MarginMm = 2.0;
         public bool InvertBinary = false;                // Binary: false = net trang/nen den
-        public Color? BackgroundOverride = null;
+        public Color? BackgroundOverride = null;         // null = tu chon theo Mode
 
         public Color ResolveBackground()
         {
@@ -37,17 +35,14 @@ namespace GerberEngine
     public sealed class RenderProgressEventArgs : EventArgs
     {
         public int Done, Total;
-        public RenderProgressEventArgs(int done, int total)
-        {
-            this.Done = done;
-            this.Total = total;
-        }
+        public RenderProgressEventArgs(int done, int total) { Done = done; Total = total; }
     }
+
     /// <summary>
-    /// Facade: manages layer list + render + export.
-    /// Bitmap return loop belongs to CALLER (caller must Dispose) - see Spec 5.1.7.
-    /// Thread-safety: render methods are allowed to be called from worker threads,
-    /// but the Layer list cannot be changed in parallel with rendering.
+    /// Facade: quan ly danh sach lop + render + export.
+    /// Vong doi Bitmap tra ve thuoc ve CALLER (caller phai Dispose) - xem Spec 5.1.7.
+    /// Thread-safety: cac phuong thuc render duoc phep goi tu worker thread,
+    /// nhung KHONG duoc thay doi danh sach Layers song song voi render.
     /// </summary>
     public sealed class GerberEngineFacade
     {
@@ -55,14 +50,12 @@ namespace GerberEngine
         private readonly GerberRenderer _renderer = new GerberRenderer();
 
         public IReadOnlyList<GerberLayer> Layers { get { return _layers; } }
+
         public event EventHandler<RenderProgressEventArgs> RenderProgress;
 
-        // Class Management (FR-003, FR-004)
-        /// <summary>
-        /// Parse file, automatically identify class type, assign default realistic color.
-        /// </summary>
-        /// <param name="filePath"></param>
-        /// <returns></returns>
+        // ---------- Quan ly lop (FR-003, FR-004) ----------
+
+        /// <summary>Parse file, tu nhan dien loai lop, gan mau realistic mac dinh.</summary>
         public GerberLayer LoadLayer(string filePath)
         {
             GerberLayer layer = new GerberParser().ParseFile(filePath);
@@ -82,10 +75,8 @@ namespace GerberEngine
         }
 
         public void Clear() { _layers.Clear(); }
-        /// <summary>
-        /// Bbox combines most visible layers (mm). Empty if nothing.
-        /// </summary>
-        /// <returns></returns>
+
+        /// <summary>Bbox hop nhat cac lop visible (mm). Empty neu khong co gi.</summary>
         public RectangleD GetCombinedBoundsMm()
         {
             RectangleD b = RectangleD.Empty;
@@ -93,33 +84,23 @@ namespace GerberEngine
                 if (l.Visible) b.Expand(l.GetBoundsMm());
             return b;
         }
-        /// <summary>
-        /// Transformers are used for both rendering and reversing mouse coordinates (FR-008, FR-009).
-        /// </summary>
-        /// <param name="options"></param>
-        /// <returns></returns>
+
+        /// <summary>Transformer dung chung cho render va doi chieu toa do chuot (FR-008, FR-009).</summary>
         public CoordinateTransformer CreateTransformer(RenderOptions options)
         {
             return new CoordinateTransformer(GetCombinedBoundsMm(), options.Dpi, options.MarginMm);
         }
 
         // ---------- Render (FR-010..FR-014) ----------
-        /// <summary>
-        /// Render ONE layer on top, so it should be solid. Use a Bbox to ensure the layers fit together tightly.
-        /// </summary>
-        /// <param name="layer"></param>
-        /// <param name="options"></param>
-        /// <returns></returns>
+
+        /// <summary>Render MOT lop tren nen dac. Bbox dung bbox hop nhat de cac lop chong khit nhau.</summary>
         public Bitmap RenderLayer(GerberLayer layer, RenderOptions options)
         {
             CoordinateTransformer t = CreateTransformer(options);
             return _renderer.RenderLayerOpaque(layer, t, options.ResolveForeground(layer), options.ResolveBackground());
         }
-        /// <summary>
-        /// Render combines all visible layers (list order = bottom to top).
-        /// </summary>
-        /// <param name="options"></param>
-        /// <returns></returns>
+
+        /// <summary>Render gop tat ca lop visible (thu tu danh sach = duoi len tren).</summary>
         public Bitmap RenderCombined(RenderOptions options)
         {
             CoordinateTransformer t = CreateTransformer(options);
@@ -148,7 +129,7 @@ namespace GerberEngine
 
         private static void SavePng(Bitmap bmp, int dpi, string path)
         {
-            bmp.SetResolution(dpi, dpi);   // Write DPI metadata to PNG
+            bmp.SetResolution(dpi, dpi);   // ghi metadata DPI vao PNG
             bmp.Save(path, ImageFormat.Png);
         }
     }
