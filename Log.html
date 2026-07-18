@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>GerberViewer Change Log</title><style>body{font-family:Segoe UI,Arial,sans-serif;background:#101212;color:#ddd}table{border-collapse:collapse;width:100%}th,td{border:1px solid #444;padding:8px;vertical-align:top}th{background:#222}code{color:#ffd166}</style></head>
+<body>
+<h1>GerberViewer Implementation Log</h1>
+<p>All function and variable changes made for the Online Gerber Viewer-style UI/spec implementation are listed here.</p>
+<table><thead><tr><th>File</th><th>Function / variable</th><th>Change</th><th>Reason</th></tr></thead><tbody>
+<tr><td><code>GerberViewer/MainForm.cs</code></td><td><code>PreviewDpi</code></td><td>Added fixed preview DPI constant at 300.</td><td>Keeps preview independent from Export DPI and avoids high-resolution preview allocations.</td></tr>
+<tr><td><code>GerberViewer/MainForm.cs</code></td><td><code>LargePrimitiveWarningThreshold</code></td><td>Added 50,000 primitive threshold.</td><td>Surfaces large-scene performance status for high-resolution Gerber files.</td></tr>
+<tr><td><code>GerberViewer/MainForm.cs</code></td><td><code>LoadFiles</code></td><td>Tracks primitive counts and displays Parsing/large-scene status in English.</td><td>Improves logic/performance visibility and status-state clarity.</td></tr>
+<tr><td><code>GerberViewer/MainForm.cs</code></td><td><code>BuildOptions(bool forPreview)</code></td><td>Preview rendering now uses <code>PreviewDpi</code>; exports use the selected Export DPI.</td><td>Prevents Export DPI from changing preview scale/sharpness and reduces memory for large boards.</td></tr>
+<tr><td><code>GerberViewer/MainForm.cs</code></td><td><code>RenderPreviewAsync</code></td><td>Status text changed to “Generating preview” and “Ready (preview transform, Export DPI independent)”.</td><td>Aligns with spec state language.</td></tr>
+<tr><td><code>GerberViewer/GerberCanvas.cs</code></td><td><code>_majorGridPen</code>, <code>_minorGridPen</code></td><td>Added reusable grid pens.</td><td>Creates dark CAD-like grid similar to onlinegerberviewer.com.</td></tr>
+<tr><td><code>GerberViewer/GerberCanvas.cs</code></td><td><code>OnPaint</code></td><td>Draws dark grid before image and updates empty-state text.</td><td>Improves visual similarity to reference UI.</td></tr>
+<tr><td><code>GerberViewer/GerberCanvas.cs</code></td><td><code>DrawGrid(Graphics g)</code></td><td>Added helper for minor/major grid rendering.</td><td>Keeps grid drawing isolated and reusable.</td></tr>
+<tr><td><code>GerberViewer/GerberCanvas.cs</code></td><td><code>Dispose(bool disposing)</code></td><td>Disposes grid pens in addition to preview bitmap.</td><td>Prevents GDI resource leaks.</td></tr>
+<tr><td><code>GerberViewer/MainForm.Designer.cs</code></td><td><code>InitializeComponent</code> UI labels/style</td><td>Renamed toolbar labels, constrained Export DPI choices, applied dark toolbar/sidebar and light status bar.</td><td>Matches spec-required controls and visual style of onlinegerberviewer.com.</td></tr>
+</tbody></table>
+</body></html>

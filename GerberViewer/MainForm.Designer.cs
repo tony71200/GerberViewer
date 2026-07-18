@@ -67,6 +67,9 @@
             // toolStrip
             //
             this.toolStrip.GripStyle = System.Windows.Forms.ToolStripGripStyle.Hidden;
+            this.toolStrip.BackColor = System.Drawing.Color.FromArgb(9, 10, 10);
+            this.toolStrip.ForeColor = System.Drawing.Color.Gainsboro;
+            this.toolStrip.Padding = new System.Windows.Forms.Padding(8, 3, 8, 3);
             this.toolStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
                 this.tsbOpen,
                 new System.Windows.Forms.ToolStripSeparator(),
@@ -80,29 +83,29 @@
             //
             // tsbOpen
             //
-            this.tsbOpen.Text = "Open Gerber...";
+            this.tsbOpen.Text = "Open";
             this.tsbOpen.Click += new System.EventHandler(this.tsbOpen_Click);
             //
             // tscDpi / tscMode
             //
-            this.tslDpi.Text = "DPI:";
+            this.tslDpi.Text = "Export DPI:";
             this.tscDpi.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.tscDpi.Items.AddRange(new object[] { "150", "300", "600", "1200", "2400", "4800" });
+            this.tscDpi.Items.AddRange(new object[] { "150", "300", "600", "1200" });
             this.tscDpi.Size = new System.Drawing.Size(70, 25);
-            this.tslMode.Text = "Mau:";
+            this.tslMode.Text = "Color Mode:";
             this.tscMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.tscMode.Items.AddRange(new object[] { "Realistic", "Binary Mask" });
             this.tscMode.Size = new System.Drawing.Size(100, 25);
             //
             // tsbRender / tsbFit / export
             //
-            this.tsbRender.Text = "Render Preview";
+            this.tsbRender.Text = "Refresh Preview";
             this.tsbRender.Click += new System.EventHandler(this.tsbRender_Click);
             this.tsbFit.Text = "Fit";
             this.tsbFit.Click += new System.EventHandler(this.tsbFit_Click);
-            this.tsbExportSelected.Text = "Export Selected PNG";
+            this.tsbExportSelected.Text = "Export Selected";
             this.tsbExportSelected.Click += new System.EventHandler(this.tsbExportSelected_Click);
-            this.tsbExportCombined.Text = "Export Combined PNG";
+            this.tsbExportCombined.Text = "Export Combined";
             this.tsbExportCombined.Click += new System.EventHandler(this.tsbExportCombined_Click);
             //
             // splitContainer
@@ -110,11 +113,15 @@
             this.splitContainer.Dock = System.Windows.Forms.DockStyle.Fill;
             this.splitContainer.FixedPanel = System.Windows.Forms.FixedPanel.Panel1;
             this.splitContainer.SplitterDistance = 260;
+            this.splitContainer.BackColor = System.Drawing.Color.FromArgb(20, 22, 22);
             this.splitContainer.Panel1.Controls.Add(this.lvLayers);
             this.splitContainer.Panel2.Controls.Add(this.canvas);
             //
             // lvLayers
             //
+            this.lvLayers.BackColor = System.Drawing.Color.FromArgb(18, 20, 20);
+            this.lvLayers.ForeColor = System.Drawing.Color.Gainsboro;
+            this.lvLayers.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.lvLayers.CheckBoxes = true;
             this.lvLayers.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
                 this.colLayerName, this.colLayerType});
@@ -129,7 +136,7 @@
             this.lvLayers.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.lvLayers_MouseDoubleClick);
             this.colLayerName.Text = "Layer";
             this.colLayerName.Width = 150;
-            this.colLayerType.Text = "Loai";
+            this.colLayerType.Text = "Type";
             this.colLayerType.Width = 100;
             //
             // imgColors
@@ -142,13 +149,13 @@
             this.ctxLayers.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
                 this.miChangeColor, this.miMoveUp, this.miMoveDown,
                 new System.Windows.Forms.ToolStripSeparator(), this.miRemove});
-            this.miChangeColor.Text = "Doi mau lop...";
+            this.miChangeColor.Text = "Change layer color...";
             this.miChangeColor.Click += new System.EventHandler(this.miChangeColor_Click);
-            this.miMoveUp.Text = "Chuyen len";
+            this.miMoveUp.Text = "Move up";
             this.miMoveUp.Click += new System.EventHandler(this.miMoveUp_Click);
-            this.miMoveDown.Text = "Chuyen xuong";
+            this.miMoveDown.Text = "Move down";
             this.miMoveDown.Click += new System.EventHandler(this.miMoveDown_Click);
-            this.miRemove.Text = "Xoa lop";
+            this.miRemove.Text = "Remove layer";
             this.miRemove.Click += new System.EventHandler(this.miRemove_Click);
             //
             // canvas (custom control - logic o GerberCanvas.cs, Spec 5.2.2)
@@ -158,11 +165,13 @@
             //
             // statusStrip
             //
+            this.statusStrip.BackColor = System.Drawing.Color.FromArgb(230, 232, 232);
+            this.statusStrip.ForeColor = System.Drawing.Color.FromArgb(35, 38, 38);
             this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
                 this.lblStatus, this.lblBoardSize, this.lblCoords, this.lblZoom});
             this.lblStatus.Spring = true;
             this.lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.lblStatus.Text = "San sang";
+            this.lblStatus.Text = "Ready";
             this.lblBoardSize.Text = "";
             this.lblCoords.Text = "X: -  Y: -";
             this.lblCoords.AutoSize = false;
@@ -173,13 +182,13 @@
             //
             this.AllowDrop = true;
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi; // Spec 5.1.5
-            this.ClientSize = new System.Drawing.Size(1200, 750);
+            this.ClientSize = new System.Drawing.Size(1400, 780);
             // THU TU ADD QUYET DINH LAYOUT (Spec 5.2.3): Fill truoc, strip sau
             this.Controls.Add(this.splitContainer);
             this.Controls.Add(this.statusStrip);
             this.Controls.Add(this.toolStrip);
             this.Name = "MainForm";
-            this.Text = "Gerber Viewer & PNG Converter (.NET 4.8 WinForms)";
+            this.Text = "Gerber Viewer";
             this.DragEnter += new System.Windows.Forms.DragEventHandler(this.MainForm_DragEnter);
             this.DragDrop += new System.Windows.Forms.DragEventHandler(this.MainForm_DragDrop);
             this.toolStrip.ResumeLayout(false);
