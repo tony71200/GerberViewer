@@ -38,6 +38,14 @@ namespace GerberViewer
             InitializeSvgViewerAsync();
         }
 
+
+        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (_loadFilesCts != null) _loadFilesCts.Cancel();
+            if (_previewCts != null) _previewCts.Cancel();
+            svgViewer.PrepareForFormClosing();
+        }
+
         // ---------- Nap file (FR-003) ----------
         private void tsbOpen_Click(object sender, EventArgs e)
         {
