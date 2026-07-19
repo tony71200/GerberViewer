@@ -64,7 +64,11 @@
     <Compile Include="ApertureMacroProcessor.cs" />
     <Compile Include="CoordinateTransformer.cs" />
     <Compile Include="GerberEngine.cs" />
+    <Compile Include="GerberRasterExportRenderer.cs" />
+    <Compile Include="GerberScene.cs" />
+    <Compile Include="GerberSvgRenderer.cs" />
     <Compile Include="GerberModels.cs" />
+    <Compile Include="RenderOptionsV12.cs" />
     <Compile Include="GerberParser.cs" />
     <Compile Include="GerberRenderer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

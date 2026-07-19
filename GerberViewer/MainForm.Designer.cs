@@ -39,6 +39,10 @@
             this.tsbFit = new System.Windows.Forms.ToolStripButton();
             this.tsbExportSelected = new System.Windows.Forms.ToolStripButton();
             this.tsbExportCombined = new System.Windows.Forms.ToolStripButton();
+            this.tsbPan = new System.Windows.Forms.ToolStripButton();
+            this.tsbMeasureDistance = new System.Windows.Forms.ToolStripButton();
+            this.tsbMeasureAngle = new System.Windows.Forms.ToolStripButton();
+            this.tsbClearMeasurements = new System.Windows.Forms.ToolStripButton();
             this.splitContainer = new System.Windows.Forms.SplitContainer();
             this.lvLayers = new System.Windows.Forms.ListView();
             this.colLayerName = new System.Windows.Forms.ColumnHeader();
@@ -78,6 +82,8 @@
                 new System.Windows.Forms.ToolStripSeparator(),
                 this.tsbRender, this.tsbFit,
                 new System.Windows.Forms.ToolStripSeparator(),
+                this.tsbPan, this.tsbMeasureDistance, this.tsbMeasureAngle, this.tsbClearMeasurements,
+                new System.Windows.Forms.ToolStripSeparator(),
                 this.tsbExportSelected, this.tsbExportCombined});
             this.toolStrip.Name = "toolStrip";
             //
@@ -90,7 +96,7 @@
             //
             this.tslDpi.Text = "Export DPI:";
             this.tscDpi.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.tscDpi.Items.AddRange(new object[] { "150", "300", "600", "1200", "6000"});
+            this.tscDpi.Items.AddRange(new object[] { "150", "300", "600", "1200"});
             this.tscDpi.Size = new System.Drawing.Size(70, 25);
             this.tslMode.Text = "Color Mode:";
             this.tscMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
@@ -107,6 +113,17 @@
             this.tsbExportSelected.Click += new System.EventHandler(this.tsbExportSelected_Click);
             this.tsbExportCombined.Text = "Export Combined";
             this.tsbExportCombined.Click += new System.EventHandler(this.tsbExportCombined_Click);
+            this.tsbPan.Text = "Pan/Inspect";
+            this.tsbPan.CheckOnClick = true;
+            this.tsbPan.Click += new System.EventHandler(this.tsbPan_Click);
+            this.tsbMeasureDistance.Text = "Measure Distance";
+            this.tsbMeasureDistance.CheckOnClick = true;
+            this.tsbMeasureDistance.Click += new System.EventHandler(this.tsbMeasureDistance_Click);
+            this.tsbMeasureAngle.Text = "Measure Angle";
+            this.tsbMeasureAngle.CheckOnClick = true;
+            this.tsbMeasureAngle.Click += new System.EventHandler(this.tsbMeasureAngle_Click);
+            this.tsbClearMeasurements.Text = "Clear Measurements";
+            this.tsbClearMeasurements.Click += new System.EventHandler(this.tsbClearMeasurements_Click);
             //
             // splitContainer
             //
@@ -216,6 +233,10 @@
         private System.Windows.Forms.ToolStripButton tsbFit;
         private System.Windows.Forms.ToolStripButton tsbExportSelected;
         private System.Windows.Forms.ToolStripButton tsbExportCombined;
+        private System.Windows.Forms.ToolStripButton tsbPan;
+        private System.Windows.Forms.ToolStripButton tsbMeasureDistance;
+        private System.Windows.Forms.ToolStripButton tsbMeasureAngle;
+        private System.Windows.Forms.ToolStripButton tsbClearMeasurements;
 
         private System.Windows.Forms.SplitContainer splitContainer;
         private System.Windows.Forms.ListView lvLayers;

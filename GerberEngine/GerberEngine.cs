@@ -53,6 +53,8 @@ namespace GerberEngine
     {
         private readonly List<GerberLayer> _layers = new List<GerberLayer>();
         private readonly GerberRenderer _renderer = new GerberRenderer();
+        private readonly GerberRasterExportRenderer _rasterExportRenderer = new GerberRasterExportRenderer();
+        private readonly GerberSvgRenderer _svgRenderer = new GerberSvgRenderer();
 
         public IReadOnlyList<GerberLayer> Layers { get { return _layers; } }
         public event EventHandler<RenderProgressEventArgs> RenderProgress;
@@ -88,10 +90,17 @@ namespace GerberEngine
         /// <returns></returns>
         public RectangleD GetCombinedBoundsMm()
         {
-            RectangleD b = RectangleD.Empty;
-            foreach (GerberLayer l in _layers)
-                if (l.Visible) b.Expand(l.GetBoundsMm());
-            return b;
+            return BuildScene().BoundsMm;
+        }
+
+        public GerberScene BuildScene()
+        {
+            return new GerberScene(_layers);
+        }
+
+        public string RenderSvg(SvgRenderOptions options)
+        {
+            return _svgRenderer.Render(BuildScene(), options);
         }
         /// <summary>
         /// Transformers are used for both rendering and reversing mouse coordinates (FR-008, FR-009).
@@ -136,14 +145,37 @@ namespace GerberEngine
 
         public void ExportLayerPng(GerberLayer layer, RenderOptions options, string outputPath)
         {
-            using (Bitmap bmp = RenderLayer(layer, options))
-                SavePng(bmp, options.Dpi, outputPath);
+            RasterExportOptions exportOptions = ToRasterExportOptions(options);
+            GerberScene scene = BuildScene();
+            GerberSceneLayer sceneLayer = FindSceneLayer(scene, layer);
+            using (Bitmap bmp = _rasterExportRenderer.RenderLayer(sceneLayer, scene.BoundsMm, exportOptions))
+                SavePng(bmp, exportOptions.Dpi, outputPath);
         }
 
         public void ExportCombinedPng(RenderOptions options, string outputPath)
         {
-            using (Bitmap bmp = RenderCombined(options))
-                SavePng(bmp, options.Dpi, outputPath);
+            RasterExportOptions exportOptions = ToRasterExportOptions(options);
+            using (Bitmap bmp = _rasterExportRenderer.RenderCombined(BuildScene(), exportOptions, OnProgress))
+                SavePng(bmp, exportOptions.Dpi, outputPath);
+        }
+
+        private static RasterExportOptions ToRasterExportOptions(RenderOptions options)
+        {
+            return new RasterExportOptions
+            {
+                Dpi = options.Dpi,
+                Mode = options.Mode,
+                MarginMm = options.MarginMm,
+                Background = options.ResolveBackground(),
+                InvertBinary = options.InvertBinary
+            };
+        }
+
+        private static GerberSceneLayer FindSceneLayer(GerberScene scene, GerberLayer layer)
+        {
+            foreach (GerberSceneLayer sceneLayer in scene.Layers)
+                if (object.ReferenceEquals(sceneLayer.SourceLayer, layer)) return sceneLayer;
+            throw new ArgumentException("Layer is not part of this scene.");
         }
 
         private static void SavePng(Bitmap bmp, int dpi, string path)

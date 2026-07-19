@@ -23,6 +23,9 @@ namespace GerberViewer
         private CoordinateTransformer _previewTransformer;   // doi chieu toa do chuot (FR-009)
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
+        private readonly List<CanvasMeasurementOverlay> _measurements = new List<CanvasMeasurementOverlay>();
+        private readonly List<PointF> _pendingImagePoints = new List<PointF>();
+        private readonly List<PointD> _pendingWorldPoints = new List<PointD>();
 
         private const int PreviewDpi = 300;
         private const int LargePrimitiveWarningThreshold = 50000;
@@ -33,6 +36,8 @@ namespace GerberViewer
             tscMode.SelectedIndex = 0;   // Realistic
             // Event co generic args - wire tay o day (Designer khong serialize duoc EventHandler<PointF?>)
             canvas.ImageCursorMoved += Canvas_ImageCursorMoved;
+            canvas.ImageClicked += Canvas_ImageClicked;
+            SetInteractionMode(CanvasInteractionMode.PanInspect);
         }
 
         // ---------- Nap file (FR-003) ----------
@@ -192,6 +197,30 @@ namespace GerberViewer
         private void tsbRender_Click(object sender, EventArgs e) { RenderPreviewAsync(true); }
         private void tsbFit_Click(object sender, EventArgs e) { canvas.FitToView(); UpdateZoomLabel(); }
 
+        private void tsbPan_Click(object sender, EventArgs e) { SetInteractionMode(CanvasInteractionMode.PanInspect); }
+        private void tsbMeasureDistance_Click(object sender, EventArgs e) { SetInteractionMode(CanvasInteractionMode.MeasureDistance); }
+        private void tsbMeasureAngle_Click(object sender, EventArgs e) { SetInteractionMode(CanvasInteractionMode.MeasureAngle); }
+        private void tsbClearMeasurements_Click(object sender, EventArgs e)
+        {
+            _measurements.Clear();
+            _pendingImagePoints.Clear();
+            _pendingWorldPoints.Clear();
+            canvas.ClearMeasurementOverlay();
+            lblStatus.Text = "Measurements cleared";
+        }
+
+        private void SetInteractionMode(CanvasInteractionMode mode)
+        {
+            canvas.InteractionMode = mode;
+            tsbPan.Checked = mode == CanvasInteractionMode.PanInspect;
+            tsbMeasureDistance.Checked = mode == CanvasInteractionMode.MeasureDistance;
+            tsbMeasureAngle.Checked = mode == CanvasInteractionMode.MeasureAngle;
+            _pendingImagePoints.Clear();
+            _pendingWorldPoints.Clear();
+            canvas.SetPendingMeasurement(_pendingImagePoints, null);
+            lblStatus.Text = mode == CanvasInteractionMode.PanInspect ? "Pan/Inspect mode" : (mode == CanvasInteractionMode.MeasureDistance ? "Measure Distance: click P1 then P2" : "Measure Angle: click A, vertex V, then B");
+        }
+
         private void RenderPreviewAsync(bool fit)
         {
             if (_rendering) return;
@@ -240,6 +269,7 @@ namespace GerberViewer
         private void Canvas_ImageCursorMoved(object sender, PointF? imagePx)
         {
             UpdateZoomLabel();
+            canvas.SetPendingMeasurement(_pendingImagePoints, imagePx);
             if (imagePx == null || _previewTransformer == null)
             {
                 lblCoords.Text = "X: -  Y: -";
@@ -248,6 +278,61 @@ namespace GerberViewer
             PointD mm = _previewTransformer.ToMm(imagePx.Value.X, imagePx.Value.Y);
             lblCoords.Text = string.Format("X: {0:0.###} mm ({1:0.####}\")  Y: {2:0.###} mm ({3:0.####}\")",
                 mm.X, mm.X / 25.4, mm.Y, mm.Y / 25.4);
+        }
+
+
+        private void Canvas_ImageClicked(object sender, PointF imagePx)
+        {
+            if (_previewTransformer == null) return;
+            if (canvas.InteractionMode == CanvasInteractionMode.PanInspect) return;
+
+            PointD world = _previewTransformer.ToMm(imagePx.X, imagePx.Y);
+            _pendingImagePoints.Add(imagePx);
+            _pendingWorldPoints.Add(world);
+
+            int requiredPoints = canvas.InteractionMode == CanvasInteractionMode.MeasureAngle ? 3 : 2;
+            if (_pendingWorldPoints.Count < requiredPoints)
+            {
+                canvas.SetPendingMeasurement(_pendingImagePoints, null);
+                lblStatus.Text = canvas.InteractionMode == CanvasInteractionMode.MeasureAngle ?
+                    "Measure Angle: click the next point" : "Measure Distance: click P2";
+                return;
+            }
+
+            CanvasMeasurementOverlay overlay = new CanvasMeasurementOverlay();
+            overlay.ImagePoints.AddRange(_pendingImagePoints);
+            overlay.IsAngle = canvas.InteractionMode == CanvasInteractionMode.MeasureAngle;
+            overlay.Label = overlay.IsAngle ? FormatAngleMeasurement(_pendingWorldPoints) : FormatDistanceMeasurement(_pendingWorldPoints);
+            _measurements.Add(overlay);
+            _pendingImagePoints.Clear();
+            _pendingWorldPoints.Clear();
+            canvas.SetMeasurements(_measurements);
+            canvas.SetPendingMeasurement(_pendingImagePoints, null);
+            lblStatus.Text = "Measurement added: " + overlay.Label.Replace("\n", " | ");
+        }
+
+        private static string FormatDistanceMeasurement(IList<PointD> pts)
+        {
+            double dx = pts[1].X - pts[0].X;
+            double dy = pts[1].Y - pts[0].Y;
+            double distance = Math.Sqrt(dx * dx + dy * dy);
+            double bearing = Math.Atan2(dy, dx) * 180.0 / Math.PI;
+            if (bearing < 0) bearing += 360.0;
+            return string.Format("ΔX {0:0.###} mm\nΔY {1:0.###} mm\nD {2:0.###} mm\nθ {3:0.##}°", dx, dy, distance, bearing);
+        }
+
+        private static string FormatAngleMeasurement(IList<PointD> pts)
+        {
+            PointD a = pts[0], v = pts[1], b = pts[2];
+            double ax = a.X - v.X, ay = a.Y - v.Y;
+            double bx = b.X - v.X, by = b.Y - v.Y;
+            double la = Math.Sqrt(ax * ax + ay * ay);
+            double lb = Math.Sqrt(bx * bx + by * by);
+            if (la < 1e-12 || lb < 1e-12) return "Angle undefined";
+            double cos = (ax * bx + ay * by) / (la * lb);
+            cos = Math.Max(-1.0, Math.Min(1.0, cos));
+            double angle = Math.Acos(cos) * 180.0 / Math.PI;
+            return string.Format("∠ {0:0.##}°", angle);
         }
 
         private void UpdateZoomLabel()
