@@ -1,10 +1,10 @@
 # TECHNICAL SPECIFICATION
 ## GERBER VIEWER & PNG CONVERTER — C# / WINFORMS (.NET FRAMEWORK 4.8)
 
-**File name:** `Spec_CSharpWinform_EN.md`  
-**Version:** 1.1  
-**Date:** 2026-07-18  
-**Supersedes:** `Spec_CSharpWinform.md` version 1.0  
+**File name:** `Spec_CSharpWinform_EN_v1.2.md`  
+**Version:** 1.2  
+**Date:** 2026-07-19  
+**Supersedes:** `Spec_CSharpWinform_EN.md` version 1.1  
 **UI/UX reference:** functionality comparable to `https://onlinegerberviewer.com/`  
 **Architecture reference:** the parser → plotter → SVG renderer concept used by `@tracespace/renderer`; the JavaScript package itself is not used inside the C# core.
 
@@ -19,6 +19,7 @@
 | BR-003 | The `GerberEngine` processing core shall be separated from the UI and packaged as a class library with a stable public API reusable by console tools, services, and other applications. |
 | BR-004 | The interactive preview shall use vector geometry and SVG and shall be independent of PNG export DPI. Users shall be able to zoom deeply without pixelation or blur caused by a fixed-resolution preview bitmap. |
 | BR-005 | Zoom shall respond immediately through viewport transformation, after which the display engine shall re-rasterize vector content for the current screen resolution. Gerber files shall not be reparsed on every zoom or pan operation. |
+| BR-006 | The viewer shall provide distance and angle measurement tools in real Gerber world coordinates using mm, mil, or inch. Measurement values, points, and overlays shall be completely independent of Export DPI. |
 
 ---
 
@@ -33,7 +34,8 @@
 - `@tracespace/renderer` is an architectural reference only. The application shall not require Node.js and shall not use JavaScript to parse Gerber data.
 - `GerberEngine.dll` shall not reference `System.Windows.Forms`, WebView2, or any UI control.
 - The UI may use **Microsoft Edge WebView2** as a local SVG display host. WebView2 shall only display internally generated SVG/HTML and shall not parse Gerber files.
-- If the WebView2 Runtime is unavailable, the application shall show a clear diagnostic and may provide a bitmap preview fallback. PNG export shall remain operational.
+- If the WebView2 Runtime is unavailable, the application shall show a clear diagnostic. Any bitmap preview fallback shall render to the **current viewport/control pixel size**, never at Export DPI. PNG export shall remain operational.
+- The preview HTML shell may contain fixed, local, application-controlled JavaScript for camera and measurement interaction. Gerber content shall never generate or inject script.
 - No third-party Gerber parser or Gerber renderer shall be used in the core. UI dependencies such as WebView2 shall be isolated in the `GerberViewer` project.
 
 ---
@@ -63,7 +65,7 @@ The word **“shall”** indicates a mandatory requirement. Every FR shall trace
   1. **World/vector transform:** millimeters ↔ SVG user units/viewBox, without DPI.
   2. **Export raster transform:** millimeters → pixels using `px = mm / 25.4 × dpi`.
 - **FR-011** (BR-002): The UI shall display cursor coordinates in millimeters and inches by inversely transforming screen coordinates into world millimeters.
-- **FR-012** (BR-004): Changing Export DPI shall not change preview zoom, camera position, sharpness, or logical SVG size.
+- **FR-012** (BR-004): Changing Export DPI shall not change preview zoom, camera position, sharpness, logical SVG size, measurement state, or preview DOM. The Export DPI change event shall not call any preview refresh or rebuild method.
 - **FR-013** (BR-005): Zoom shall be anchored at the cursor. The world point below the cursor shall remain unchanged before and after the zoom within display tolerance.
 
 ### 3.4. SVG vector preview
@@ -96,7 +98,7 @@ The word **“shall”** indicates a mandatory requirement. Every FR shall trace
   1. **Binary Mask:** white geometry on a black background, with inversion support.
   2. **Realistic:** PCB-style colors for copper, solder mask, silkscreen, and background.
 - **FR-030** (BR-001): Users shall export selected layers individually or all visible layers as a composite PNG.
-- **FR-031** (BR-001): PNG export shall use `GerberRasterRenderer` directly from `GerberScene`. It shall not capture a WebView2 screenshot or rasterize from the current canvas size.
+- **FR-031** (BR-001): PNG export shall use `GerberRasterExportRenderer` directly from `GerberScene`. It shall not capture a WebView2 screenshot or rasterize from the current canvas size. Any DPI-based raster renderer shall be explicitly **export-only** and shall not be called by the preview workflow.
 - **FR-032** (BR-001): Export shall include the complete bounds and margin without clipping and shall validate bitmap dimensions and memory requirements before allocation.
 - **FR-033** (BR-001): SVG preview and PNG export shall use the same `GerberScene`. Positional and dimensional differences between renderers shall remain within the test tolerance.
 
@@ -110,6 +112,24 @@ The word **“shall”** indicates a mandatory requirement. Every FR shall trace
 - **FR-039** (BR-002): The UI shall display distinct states: Parsing, Building scene, Generating SVG, Refining viewport, Exporting PNG, and Ready.
 - **FR-040** (BR-002): The SVG preview host shall block external navigation and popups and shall display only local or in-memory content generated by the application.
 
+
+### 3.8. Distance and angle measurement tools
+
+- **FR-041** (BR-006): The ToolStrip shall provide distinct modes: `Pan/Inspect`, `Measure Distance`, `Measure Angle`, and `Clear Measurements`. The active mode shall be visible, and only one interaction mode may be active at a time.
+- **FR-042** (BR-006): `Measure Distance` shall use two world points, `P1` and `P2`. While the second point is moving, the overlay shall provide a live preview containing the measurement line, two markers, and a result label.
+- **FR-043** (BR-006): A two-point measurement shall return `ΔX`, `ΔY`, Euclidean distance, and bearing from the Gerber +X axis: `distance = sqrt(dx² + dy²)` and `bearing = atan2(dy, dx)`, normalized to `[0°, 360°)`.
+- **FR-044** (BR-006): `Measure Angle` shall use three points in the order `A → V → B`, where `V` is the vertex. The result shall be the included angle less than or equal to 180° between vectors `V→A` and `V→B`.
+- **FR-045** (BR-006): The system shall support `Single` and `Continuous` measurement modes. In Continuous mode, completed measurements remain visible and the tool immediately accepts the next measurement without leaving the mode.
+- **FR-046** (BR-006): Measurement coordinates and calculations shall be stored internally as millimeter `double` values. Display units may be switched among mm, mil, and inch without modifying the stored data.
+- **FR-047** (BR-006): Measurements shall be rendered as an independent vector overlay in the preview shell. Lines and markers shall use non-scaling strokes or an equivalent technique, and labels shall remain readable across zoom levels.
+- **FR-048** (BR-006): Completed measurements shall preserve their world positions and values through zoom, pan, Fit-to-view, monitor-DPI changes, layer visibility/color/opacity changes, and Export DPI changes.
+- **FR-049** (BR-006): While a measurement mode is active, users shall still be able to zoom with the wheel and pan with the middle button, right button, or `Space + drag` without losing the in-progress measurement.
+- **FR-050** (BR-006): The system shall support `Esc` to cancel the active measurement, `Delete` to remove the selected measurement, `Ctrl+Z` to undo the latest measurement, and `Clear Measurements` to remove all overlays with suitable confirmation.
+- **FR-051** (BR-006): Optional snapping shall be available at minimum for the grid and indexed geometry points such as endpoints, flash centers, and drill centers when present. Snap tolerance shall be defined in screen pixels and converted to world tolerance using the current camera, never Export DPI.
+- **FR-052** (BR-006): Measurement overlays shall be excluded from PNG export by default. A future `Export with annotations` feature shall be a separate export option and shall not modify Gerber geometry.
+- **FR-053** (BR-006): The preview host shall expose a typed bridge for pointer, camera, and measurement events. Messages shall use world millimeters or client coordinates plus camera state; they shall not send or request Export DPI.
+- **FR-054** (BR-006): Every measurement calculation shall occur after client/screen coordinates have been converted to world coordinates through the inverse viewport transform. Distance or angle shall never be calculated directly from screen pixels.
+
 ---
 
 ## 4. NON-FUNCTIONAL REQUIREMENTS (NFR)
@@ -117,7 +137,7 @@ The word **“shall”** indicates a mandatory requirement. Every FR shall trace
 - **NFR-001 — Parse/scene performance:** A layer containing up to 50,000 primitives shall be parsed and converted to `GerberScene` within 5 seconds on the reference office computer.
 - **NFR-002 — PNG performance:** A layer containing up to 50,000 primitives on a board no larger than 100 × 100 mm shall export at 600 DPI within 10 seconds on the reference computer.
 - **NFR-003 — Zoom responsiveness:** For a loaded scene of up to 50,000 primitives, camera-transform feedback after wheel/drag input shall begin within 50 ms. A refined frame shall be available within 300 ms when a complete scene rebuild is not required.
-- **NFR-004 — DPI independence:** For the same camera and viewport, changing Export DPI between 150 and 1200 shall not change the SVG viewBox or world-to-screen transform.
+- **NFR-004 — DPI independence:** For the same camera and viewport, changing Export DPI between 150 and 1200 shall not change the SVG viewBox, world-to-screen transform, measurement state, or preview DOM. The Export DPI handler shall not call the preview renderer.
 - **NFR-005 — Build:** The application shall be built for x64.
 - **NFR-006 — Robustness:** A malformed Gerber file shall return line-based warnings, render the valid remainder, and not crash.
 - **NFR-007 — Core isolation:** `GerberEngine.dll` shall not reference `System.Windows.Forms`, WebView2, or the UI project.
@@ -126,6 +146,9 @@ The word **“shall”** indicates a mandatory requirement. Every FR shall trace
 - **NFR-010 — Offline operation:** Parsing, preview, and export shall work without Internet access once the WebView2 Runtime is available.
 - **NFR-011 — Security:** Generated SVG/HTML shall not contain unnecessary scripts, remote URLs, `foreignObject`, or active content derived from Gerber input.
 - **NFR-012 — Compatibility:** The application shall support Windows display scaling at 100%, 125%, and 150%, including multiple monitors, using `PerMonitorV2`.
+- **NFR-013 — Measurement accuracy:** For known world points, distance/ΔX/ΔY error in the math layer shall be ≤ 1e-9 mm, and UI screen→world→screen round-trip error shall be ≤ 0.5 CSS pixel, excluding user pointing error.
+- **NFR-014 — Measurement interaction:** The live measurement overlay shall target 60 FPS and shall not fall below 30 FPS for scenes satisfying NFR-003. Pointer feedback shall begin within 50 ms.
+- **NFR-015 — Measurement invariance:** Measurement values for identical world points shall be bitwise stable or remain within the defined numerical tolerance when zoom, viewport size, monitor scaling, or Export DPI changes.
 
 ---
 
@@ -144,7 +167,7 @@ GerberSceneBuilder / Plotter
         ↓
 GerberScene (mm, vector, DPI-independent)
         ├── GerberSvgRenderer → SVG preview
-        └── GerberRasterRenderer → Bitmap/PNG at Export DPI
+        └── GerberRasterExportRenderer → Bitmap/PNG at Export DPI
 ```
 
 Mandatory principles:
@@ -152,7 +175,7 @@ Mandatory principles:
 1. The parser shall not call drawing APIs.
 2. A renderer shall not read raw Gerber text directly.
 3. `GerberScene` shall be the single geometric source for SVG and PNG.
-4. Preview DPI and Export DPI shall be separate concepts.
+4. Preview shall have no image-DPI setting; `Export DPI` shall exist only in raster export.
 5. Camera operations shall not modify world geometry.
 
 ### 5.2. SVG preview pipeline
@@ -202,7 +225,30 @@ Official terminology in code and documentation:
 
 Do not describe this mechanism as “loading a higher-DPI image” unless a future implementation actually uses a multi-resolution image tile pyramid.
 
-### 5.4. PNG raster export pipeline
+### 5.4. Measurement coordinate and overlay pipeline
+
+```text
+Pointer client coordinate
+        ↓ inverse camera/viewBox transform
+World point in millimeters
+        ↓ MeasurementMath
+Distance / ΔX / ΔY / bearing / included angle
+        ↓
+MeasurementDocument (world-mm data)
+        ↓
+SVG overlay group above Gerber layers
+```
+
+Mandatory rules:
+
+1. `MeasurementDocument` shall store points and results in world millimeters, never pixels or DPI.
+2. The same world-space camera transform shall apply to Gerber geometry and the measurement overlay.
+3. Overlay strokes, markers, and labels shall remain readable using `vector-effect="non-scaling-stroke"`, CSS transforms, or an equivalent mechanism.
+4. Gerber-generated SVG shall contain no script. A trusted HTML preview shell may contain fixed JavaScript for camera and overlay control.
+5. Snapping shall query the spatial index in world space. Tolerance starts in CSS pixels and is converted to millimeters using the current world-units-per-pixel value.
+6. Angles shall be calculated in world coordinates where +Y points upward. Screen coordinates where +Y points downward shall not be used directly.
+
+### 5.5. PNG raster export pipeline
 
 ```text
 GerberScene
@@ -228,7 +274,7 @@ DPI shall be used only in this pipeline and equivalent bitmap-export features.
 
 1. **WinForms has no native retained-mode vector canvas:** SVG shall be hosted through WebView2 or an equivalent adapter. The vector preview shall not be forced into a fixed-DPI bitmap.
 2. **WebView2 is a UI dependency:** no WebView2 type shall leak into `GerberEngine`.
-3. **GDI+ remains CPU-only:** it shall be used for PNG export and bitmap fallback only.
+3. **GDI+ remains CPU-only:** it shall be used for PNG export and bitmap fallback only. The bitmap fallback shall accept `ViewportWidthPx`, `ViewportHeightPx`, and `WorldViewportMm`; it shall never accept or read Export DPI.
 4. **Bitmap limits:** a bitmap uses approximately 4 bytes per pixel. A 300 × 300 mm board at 1200 DPI is approximately 14,173 × 14,173 pixels and approximately 800 MB before overhead; allocation shall be validated.
 5. **Single UI thread:** all WinForms/WebView2 updates shall return to the UI thread.
 6. **Ownership:** SVG strings may be passed as immutable data; `Bitmap`, `Graphics`, `Pen`, `Brush`, and `GraphicsPath` shall be disposed.
@@ -257,7 +303,8 @@ DPI shall be used only in this pipeline and equivalent bitmap-export features.
 - High-DPI GDI+ export remains constrained by RAM and pixel count.
 - Arcs shall remain vector arcs in `GerberScene`; they may be flattened only when a renderer requires it, using tolerance derived from world or screen scale.
 - SVG preview is not CAM/fabrication proof; a dedicated reference test suite is required.
-- Bitmap fallback may become blurry at deep zoom and is a fallback mode, not the primary preview path.
+- Bitmap fallback may become blurry at deep zoom and is a fallback mode, not the primary preview path. It remains independent of Export DPI and re-rasterizes to the viewport pixel size.
+- Measurements are inspection overlays and are not dimension annotations written back into Gerber.
 
 ---
 
@@ -284,9 +331,16 @@ Solution GerberViewer.sln
 │   │   └── RTreeSpatialIndex.cs
 │   ├── Rendering
 │   │   ├── GerberSvgRenderer.cs
-│   │   ├── GerberRasterRenderer.cs
+│   │   ├── GerberRasterExportRenderer.cs
+│   │   ├── ViewportBitmapFallbackRenderer.cs
 │   │   ├── SvgRenderOptions.cs
-│   │   └── RasterRenderOptions.cs
+│   │   ├── ViewportBitmapOptions.cs
+│   │   └── RasterExportOptions.cs
+│   ├── Measurements
+│   │   ├── MeasurementDocument.cs
+│   │   ├── MeasurementModels.cs
+│   │   ├── MeasurementMath.cs
+│   │   └── MeasurementSnapService.cs
 │   ├── CoordinateTransformer.cs
 │   └── GerberEngineFacade.cs
 └── GerberViewer
@@ -297,6 +351,12 @@ Solution GerberViewer.sln
     ├── GerberPreviewHost.Designer.cs
     ├── ViewportController.cs
     ├── PreviewRenderCoordinator.cs
+    ├── MeasurementController.cs
+    ├── PreviewBridgeMessages.cs
+    ├── PreviewAssets
+    │   ├── preview-shell.html
+    │   ├── preview-shell.js
+    │   └── preview-shell.css
     └── app.manifest
 ```
 
@@ -321,21 +381,18 @@ public sealed class GerberEngineFacade
     public string RenderCombinedSvg(
         SvgRenderOptions options);
 
-    public Bitmap RenderLayerBitmap(
-        GerberLayer layer,
-        RasterRenderOptions options);
-
-    public Bitmap RenderCombinedBitmap(
-        RasterRenderOptions options);
-
+    // Export-only APIs. The preview workflow shall not call these methods.
     public void ExportLayerPng(
         GerberLayer layer,
-        RasterRenderOptions options,
+        RasterExportOptions options,
         string path);
 
     public void ExportCombinedPng(
-        RasterRenderOptions options,
+        RasterExportOptions options,
         string path);
+
+    public MeasurementMath MeasurementMath { get; }
+    public MeasurementSnapService MeasurementSnapService { get; }
 
     public event EventHandler<EngineProgressEventArgs> ProgressChanged;
 }
@@ -358,10 +415,10 @@ public sealed class SvgRenderOptions
 
 `SvgRenderOptions` shall not contain an export DPI property.
 
-### 8.3. Raster options
+### 8.3. Raster export options
 
 ```csharp
-public sealed class RasterRenderOptions
+public sealed class RasterExportOptions
 {
     public int Dpi { get; set; }             // 150/300/600/1200
     public ColorMode Mode { get; set; }
@@ -371,7 +428,44 @@ public sealed class RasterRenderOptions
 }
 ```
 
-### 8.4. Viewport state
+### 8.4. Bitmap fallback options
+
+```csharp
+public sealed class ViewportBitmapOptions
+{
+    public int ViewportWidthPx { get; set; }
+    public int ViewportHeightPx { get; set; }
+    public RectangleD WorldViewportMm { get; set; }
+    public ColorMode Mode { get; set; }
+    public Color Background { get; set; }
+}
+```
+
+`ViewportBitmapOptions` shall not contain a DPI property and shall not read the Export DPI ComboBox value.
+
+### 8.5. Measurement models
+
+```csharp
+public sealed class DistanceMeasurement
+{
+    public PointD StartMm { get; set; }
+    public PointD EndMm { get; set; }
+    public double DeltaXmm { get; set; }
+    public double DeltaYmm { get; set; }
+    public double DistanceMm { get; set; }
+    public double BearingDegrees { get; set; }
+}
+
+public sealed class AngleMeasurement
+{
+    public PointD FirstMm { get; set; }
+    public PointD VertexMm { get; set; }
+    public PointD SecondMm { get; set; }
+    public double IncludedAngleDegrees { get; set; }
+}
+```
+
+### 8.6. Viewport state
 
 ```csharp
 public sealed class ViewportState
@@ -395,15 +489,17 @@ public sealed class ViewportState
 | FR-010–FR-013 | `CoordinateTransformer.cs`, `ViewportController.cs` | World/screen round-trip; zoom anchoring |
 | FR-014–FR-020 | `GerberSvgRenderer.cs` | Validate XML/SVG; compare bounds; test polarity masks |
 | FR-021–FR-027 | `GerberPreviewHost.cs`, `ViewportController.cs`, `PreviewRenderCoordinator.cs`, spatial index | Wheel/pan stress test; latency; no white flash |
-| FR-028–FR-033 | `GerberRasterRenderer.cs`, `GerberEngineFacade.cs` | Export 4 DPI values × 2 color modes |
+| FR-028–FR-033 | `GerberRasterExportRenderer.cs`, `GerberEngineFacade.cs` | Export 4 DPI values × 2 color modes |
 | FR-034–FR-040 | `MainForm.*`, `GerberPreviewHost.*` | UI test; thread test; navigation blocking |
+| FR-041–FR-054 | `MeasurementMath.cs`, `MeasurementController.cs`, preview shell, snap service | Known-point math tests; live overlay; zoom/pan invariance; no Export DPI access |
 | NFR-003, NFR-004 | Preview benchmarks and viewport tests | Measure latency; verify DPI independence |
 | NFR-006 | Parser diagnostics | Inject malformed commands |
 | NFR-007 | `GerberEngine.csproj` | Verify project references |
 | NFR-009 | Memory test | Verify no Export-DPI preview bitmap |
 | NFR-011 | SVG security test | Reject external URLs and active content |
+| NFR-013–NFR-015 | Measurement unit/UI tests | Accuracy, frame rate, and invariance across zoom/DPI |
 
-No orphan requirement is allowed. Every FR/NFR shall trace to BR-001 through BR-005.
+No orphan requirement is allowed. Every FR/NFR shall trace to BR-001 through BR-006.
 
 ---
 
