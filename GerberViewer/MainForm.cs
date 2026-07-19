@@ -11,6 +11,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using GerberEngine;
@@ -23,6 +24,7 @@ namespace GerberViewer
         private CoordinateTransformer _previewTransformer;   // doi chieu toa do chuot (FR-009)
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
+        private CancellationTokenSource _loadFilesCts;
 
         private const int PreviewDpi = 300;
         private const int LargePrimitiveWarningThreshold = 50000;
@@ -58,32 +60,113 @@ namespace GerberViewer
             if (files != null) LoadFiles(files);
         }
 
-        private void LoadFiles(IEnumerable<string> paths)
+        private async void LoadFiles(IEnumerable<string> paths)
         {
-            lblStatus.Text = "Parsing...";
-            int warnings = 0;
-            int primitiveCount = 0;
-            foreach (string path in paths)
+            string[] files = paths == null ? new string[0] : paths.ToArray();
+            if (files.Length == 0) return;
+
+            CancellationTokenSource previousLoad = _loadFilesCts;
+            if (previousLoad != null) previousLoad.Cancel();
+            CancellationTokenSource currentLoad = new CancellationTokenSource();
+            _loadFilesCts = currentLoad;
+            CancellationToken token = currentLoad.Token;
+
+            lblStatus.Text = "Reading file 0/" + files.Length;
+
+            try
             {
-                try
-                {
-                    GerberLayer layer = _engine.LoadLayer(path);
-                    warnings += layer.Warnings.Count;
-                    primitiveCount += layer.Primitives.Count;
+                LoadFilesResult result = await Task.Run(() => LoadFilesOnWorker(files, token), token);
+
+                foreach (GerberLayer layer in result.Layers)
                     AddLayerItem(layer);
-                }
-                catch (Exception ex)
+
+                foreach (LayerLoadError error in result.Errors)
                 {
-                    MessageBox.Show(this, "Khong doc duoc \"" + Path.GetFileName(path) + "\":\r\n" + ex.Message,
+                    MessageBox.Show(this, "Khong doc duoc \"" + Path.GetFileName(error.Path) + "\":\r\n" + error.Message,
                         "Loi nap file", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
+
+                lblStatus.Text = result.Warnings > 0
+                    ? "Loaded " + result.LoadedCount + "/" + result.TotalCount + " files - " + result.Warnings + " parser warnings (see layer tooltip)"
+                    : "Loaded " + result.LoadedCount + "/" + result.TotalCount + " files";
+                if (result.PrimitiveCount >= LargePrimitiveWarningThreshold)
+                    lblStatus.Text += " | large scene: " + result.PrimitiveCount.ToString("N0") + " primitives; preview uses capped DPI for responsiveness";
+                RenderPreviewAsync(true);
             }
-            lblStatus.Text = warnings > 0
-                ? "Loaded - " + warnings + " parser warnings (see layer tooltip)"
-                : "Loaded";
-            if (primitiveCount >= LargePrimitiveWarningThreshold)
-                lblStatus.Text += " | large scene: " + primitiveCount.ToString("N0") + " primitives; preview uses capped DPI for responsiveness";
-            RenderPreviewAsync(true);
+            catch (OperationCanceledException)
+            {
+                if (ReferenceEquals(_loadFilesCts, currentLoad))
+                    lblStatus.Text = "File load canceled";
+            }
+            finally
+            {
+                if (ReferenceEquals(_loadFilesCts, currentLoad))
+                {
+                    _loadFilesCts = null;
+                    currentLoad.Dispose();
+                }
+            }
+        }
+
+        private LoadFilesResult LoadFilesOnWorker(string[] files, CancellationToken token)
+        {
+            var result = new LoadFilesResult { TotalCount = files.Length };
+            for (int i = 0; i < files.Length; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                string path = files[i];
+                int fileNumber = i + 1;
+                UpdateLoadStatus("Reading file " + fileNumber + "/" + files.Length + ": " + Path.GetFileName(path), token);
+                try
+                {
+                    token.ThrowIfCancellationRequested();
+                    UpdateLoadStatus("Parsing commands " + fileNumber + "/" + files.Length + ": " + Path.GetFileName(path), token);
+                    GerberLayer layer = _engine.LoadLayer(path);
+                    if (token.IsCancellationRequested)
+                    {
+                        _engine.RemoveLayer(layer);
+                        token.ThrowIfCancellationRequested();
+                    }
+                    result.LoadedCount++;
+                    result.Warnings += layer.Warnings.Count;
+                    result.PrimitiveCount += layer.Primitives.Count;
+                    result.Layers.Add(layer);
+                    UpdateLoadStatus("Loaded " + result.LoadedCount + "/" + files.Length + " files", token);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    result.Errors.Add(new LayerLoadError { Path = path, Message = ex.Message });
+                    UpdateLoadStatus("Skipped " + fileNumber + "/" + files.Length + ": " + Path.GetFileName(path), token);
+                }
+            }
+            return result;
+        }
+
+        private void UpdateLoadStatus(string text, CancellationToken token)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            BeginInvoke((Action)(() =>
+            {
+                if (!token.IsCancellationRequested)
+                    lblStatus.Text = text;
+            }));
+        }
+
+        private sealed class LoadFilesResult
+        {
+            public int TotalCount;
+            public int LoadedCount;
+            public int Warnings;
+            public int PrimitiveCount;
+            public readonly List<GerberLayer> Layers = new List<GerberLayer>();
+            public readonly List<LayerLoadError> Errors = new List<LayerLoadError>();
+        }
+
+        private sealed class LayerLoadError
+        {
+            public string Path;
+            public string Message;
         }
 
         private void AddLayerItem(GerberLayer layer)
