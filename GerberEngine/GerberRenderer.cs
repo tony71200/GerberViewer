@@ -14,7 +14,7 @@ using System.Drawing.Imaging;
 
 namespace GerberEngine
 {
-    public sealed class GerberRenderer
+    public class GerberRasterExportRenderer
     {
         /// <summary>
         /// Pixel limits to avoid OutOfMemory in GDI+ (Spec 5.1.2). 
@@ -30,7 +30,7 @@ namespace GerberEngine
         /// <param name="t"></param>
         /// <param name="foreColor"></param>
         /// <returns></returns>
-        public Bitmap RenderLayerTransparent(GerberLayer layer, CoordinateTransformer t, Color foreColor)
+        public Bitmap RenderLayerTransparentForExport(GerberLayer layer, CoordinateTransformer t, Color foreColor)
         {
             Bitmap bmp = CreateBitmap(t);
             using (Graphics g = CreateGraphics(bmp))
@@ -48,13 +48,13 @@ namespace GerberEngine
         /// <param name="foreColor"></param>
         /// <param name="background"></param>
         /// <returns></returns>
-        public Bitmap RenderLayerOpaque(GerberLayer layer, CoordinateTransformer t, Color foreColor, Color background)
+        public Bitmap RenderLayerOpaqueForExport(GerberLayer layer, CoordinateTransformer t, Color foreColor, Color background)
         {
             Bitmap bmp = CreateBitmap(t);
             using (Graphics g = CreateGraphics(bmp))
             {
                 g.Clear(background);
-                using (Bitmap overlay = RenderLayerTransparent(layer, t, foreColor))
+                using (Bitmap overlay = RenderLayerTransparentForExport(layer, t, foreColor))
                     g.DrawImage(overlay, 0, 0);
             }
             return bmp;
@@ -68,7 +68,7 @@ namespace GerberEngine
         /// <param name="background"></param>
         /// <param name="progress"></param>
         /// <returns></returns>
-        public Bitmap RenderCombined(IList<GerberLayer> layers, CoordinateTransformer t, ColorMode mode,
+        public Bitmap RenderCombinedForExport(IList<GerberLayer> layers, CoordinateTransformer t, ColorMode mode,
                                      Color background, Action<int, int> progress)
         {
             Bitmap bmp = CreateBitmap(t);
@@ -80,13 +80,32 @@ namespace GerberEngine
                 {
                     if (!layer.Visible) continue;
                     Color fore = mode == ColorMode.BinaryMask ? Color.White : layer.DisplayColor;
-                    using (Bitmap layerBmp = RenderLayerTransparent(layer, t, fore))
+                    using (Bitmap layerBmp = RenderLayerTransparentForExport(layer, t, fore))
                         g.DrawImage(layerBmp, 0, 0);
                     done++;
                     if (progress != null) progress(done, total);
                 }
             }
             return bmp;
+        }
+
+        [Obsolete("Use RenderLayerTransparentForExport to make GDI+ raster export usage explicit.")]
+        public Bitmap RenderLayerTransparent(GerberLayer layer, CoordinateTransformer t, Color foreColor)
+        {
+            return RenderLayerTransparentForExport(layer, t, foreColor);
+        }
+
+        [Obsolete("Use RenderLayerOpaqueForExport to make GDI+ raster export usage explicit.")]
+        public Bitmap RenderLayerOpaque(GerberLayer layer, CoordinateTransformer t, Color foreColor, Color background)
+        {
+            return RenderLayerOpaqueForExport(layer, t, foreColor, background);
+        }
+
+        [Obsolete("Use RenderCombinedForExport to make GDI+ raster export usage explicit.")]
+        public Bitmap RenderCombined(IList<GerberLayer> layers, CoordinateTransformer t, ColorMode mode,
+                                     Color background, Action<int, int> progress)
+        {
+            return RenderCombinedForExport(layers, t, mode, background, progress);
         }
         /// <summary>
         /// Default realistic color chart according to tire type (FR-011.2).
@@ -381,5 +400,10 @@ namespace GerberEngine
                     g.FillPath(b, path);
             }
         }
+    }
+
+    [Obsolete("Use GerberRasterExportRenderer to make GDI+ raster export usage explicit.")]
+    public sealed class GerberRenderer : GerberRasterExportRenderer
+    {
     }
 }

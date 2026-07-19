@@ -21,12 +21,11 @@ namespace GerberViewer
     public partial class MainForm : Form
     {
         private readonly GerberEngineFacade _engine = new GerberEngineFacade();
-        private CoordinateTransformer _previewTransformer;   // doi chieu toa do chuot (FR-009)
+        private PreviewBitmapRenderResult _previewRenderResult; // maps preview image pixels back to board mm (FR-009)
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
         private CancellationTokenSource _loadFilesCts;
 
-        private const int PreviewDpi = 300;
         private const int LargePrimitiveWarningThreshold = 50000;
         public MainForm()
         {
@@ -262,12 +261,21 @@ namespace GerberViewer
 
         // ---------- Render preview nen (FR-016, FR-017) ----------
 
-        private RenderOptions BuildOptions(bool forPreview)
+        private RenderOptions BuildExportOptions()
         {
-            int dpi = forPreview ? PreviewDpi : int.Parse(tscDpi.SelectedItem.ToString());
             return new RenderOptions
             {
-                Dpi = dpi,
+                Dpi = int.Parse(tscDpi.SelectedItem.ToString()),
+                Mode = tscMode.SelectedIndex == 1 ? ColorMode.BinaryMask : ColorMode.Realistic
+            };
+        }
+
+        private ViewportBitmapOptions BuildPreviewOptions()
+        {
+            return new ViewportBitmapOptions
+            {
+                ViewportWidthPx = Math.Max(1, canvas.ClientSize.Width),
+                ViewportHeightPx = Math.Max(1, canvas.ClientSize.Height),
                 Mode = tscMode.SelectedIndex == 1 ? ColorMode.BinaryMask : ColorMode.Realistic
             };
         }
@@ -281,21 +289,19 @@ namespace GerberViewer
             if (_engine.GetCombinedBoundsMm().IsEmpty)
             {
                 canvas.SetImage(null, false);
-                _previewTransformer = null;
+                DisposePreviewRenderResult();
                 lblBoardSize.Text = "";
                 return;
             }
 
             _rendering = true;
             lblStatus.Text = "Generating preview...";
-            RenderOptions opts = BuildOptions(true);
+            ViewportBitmapOptions opts = BuildPreviewOptions();
 
             // Render o worker thread; Bitmap ban giao quyen so huu cho canvas sau khi xong (Spec 5.1.4)
             Task.Run(() =>
             {
-                CoordinateTransformer t = _engine.CreateTransformer(opts);
-                Bitmap bmp = _engine.RenderCombined(opts);
-                return Tuple.Create(bmp, t);
+                return _engine.RenderCombinedViewportBitmap(opts);
             }).ContinueWith(task =>
             {
                 BeginInvoke((Action)(() =>
@@ -308,9 +314,10 @@ namespace GerberViewer
                         MessageBox.Show(this, msg, "Render", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
-                    _previewTransformer = task.Result.Item2;
-                    canvas.SetImage(task.Result.Item1, fit);
-                    RectangleD b = _previewTransformer.ContentBoundsMm;
+                    DisposePreviewRenderResult();
+                    _previewRenderResult = task.Result;
+                    canvas.SetImage(_previewRenderResult.Bitmap, fit);
+                    RectangleD b = _previewRenderResult.ContentBoundsMm;
                     lblBoardSize.Text = string.Format("Board: {0:0.##} x {1:0.##} mm", b.Width, b.Height);
                     lblStatus.Text = "Ready (preview transform, Export DPI independent)";
                     UpdateZoomLabel();
@@ -318,17 +325,26 @@ namespace GerberViewer
             });
         }
 
+        private void DisposePreviewRenderResult()
+        {
+            if (_previewRenderResult != null)
+            {
+                _previewRenderResult.Dispose();
+                _previewRenderResult = null;
+            }
+        }
+
         // ---------- Toa do chuot (FR-009) ----------
 
         private void Canvas_ImageCursorMoved(object sender, PointF? imagePx)
         {
             UpdateZoomLabel();
-            if (imagePx == null || _previewTransformer == null)
+            if (imagePx == null || _previewRenderResult == null)
             {
                 lblCoords.Text = "X: -  Y: -";
                 return;
             }
-            PointD mm = _previewTransformer.ToMm(imagePx.Value.X, imagePx.Value.Y);
+            PointD mm = _previewRenderResult.ImagePixelToMm(imagePx.Value.X, imagePx.Value.Y);
             lblCoords.Text = string.Format("X: {0:0.###} mm ({1:0.####}\")  Y: {2:0.###} mm ({3:0.####}\")",
                 mm.X, mm.X / 25.4, mm.Y, mm.Y / 25.4);
         }
@@ -352,7 +368,7 @@ namespace GerberViewer
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 RunExport(() =>
                 {
-                    RenderOptions opts = BuildOptions(false);
+                    RenderOptions opts = BuildExportOptions();
                     foreach (GerberLayer layer in targets)
                     {
                         string name = Path.GetFileNameWithoutExtension(layer.FileName)
@@ -371,7 +387,7 @@ namespace GerberViewer
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 RunExport(() =>
                 {
-                    _engine.ExportCombinedPng(BuildOptions(false), dlg.FileName);
+                    _engine.ExportCombinedPng(BuildExportOptions(), dlg.FileName);
                     return "Da xuat " + dlg.FileName;
                 });
             }

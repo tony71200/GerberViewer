@@ -25,13 +25,53 @@ namespace GerberEngine
         {
             if (BackgroundOverride.HasValue) return BackgroundOverride.Value;
             if (Mode == ColorMode.BinaryMask) return InvertBinary ? Color.White : Color.Black;
-            return GerberRenderer.RealisticBackground;
+            return GerberRasterExportRenderer.RealisticBackground;
         }
 
         public Color ResolveForeground(GerberLayer layer)
         {
             if (Mode == ColorMode.BinaryMask) return InvertBinary ? Color.Black : Color.White;
             return layer.DisplayColor;
+        }
+    }
+
+    public sealed class ViewportBitmapOptions
+    {
+        public int ViewportWidthPx = 1000;
+        public int ViewportHeightPx = 1000;
+        public ColorMode Mode = ColorMode.Realistic;
+        public double MarginMm = 2.0;
+        public Color? BackgroundOverride = null;
+
+        public Color ResolveBackground()
+        {
+            if (BackgroundOverride.HasValue) return BackgroundOverride.Value;
+            if (Mode == ColorMode.BinaryMask) return Color.Black;
+            return GerberRasterExportRenderer.RealisticBackground;
+        }
+    }
+
+    public sealed class PreviewBitmapRenderResult : IDisposable
+    {
+        private readonly CoordinateTransformer _transformer;
+
+        internal PreviewBitmapRenderResult(Bitmap bitmap, CoordinateTransformer transformer)
+        {
+            Bitmap = bitmap;
+            _transformer = transformer;
+        }
+
+        public Bitmap Bitmap { get; private set; }
+        public RectangleD ContentBoundsMm { get { return _transformer.ContentBoundsMm; } }
+
+        public PointD ImagePixelToMm(float px, float py)
+        {
+            return _transformer.ToMm(px, py);
+        }
+
+        public void Dispose()
+        {
+            if (Bitmap != null) { Bitmap.Dispose(); Bitmap = null; }
         }
     }
 
@@ -53,7 +93,7 @@ namespace GerberEngine
     public sealed class GerberEngineFacade
     {
         private readonly List<GerberLayer> _layers = new List<GerberLayer>();
-        private readonly GerberRenderer _renderer = new GerberRenderer();
+        private readonly GerberRasterExportRenderer _rasterExportRenderer = new GerberRasterExportRenderer();
 
         public IReadOnlyList<GerberLayer> Layers { get { return _layers; } }
         public event EventHandler<RenderProgressEventArgs> RenderProgress;
@@ -67,7 +107,7 @@ namespace GerberEngine
         public GerberLayer LoadLayer(string filePath)
         {
             GerberLayer layer = new GerberParser().ParseFile(filePath);
-            layer.DisplayColor = GerberRenderer.DefaultColor(layer.Type, ColorMode.Realistic);
+            layer.DisplayColor = GerberRasterExportRenderer.DefaultColor(layer.Type, ColorMode.Realistic);
             _layers.Add(layer);
             return layer;
         }
@@ -107,9 +147,41 @@ namespace GerberEngine
         /// </summary>
         /// <param name="options"></param>
         /// <returns></returns>
-        public CoordinateTransformer CreateTransformer(RenderOptions options)
+        public CoordinateTransformer CreateExportTransformer(RenderOptions options)
         {
             return new CoordinateTransformer(GetCombinedBoundsMm(), options.Dpi, options.MarginMm);
+        }
+
+        [Obsolete("Use CreateExportTransformer because this transformer is tied to raster export DPI.")]
+        public CoordinateTransformer CreateTransformer(RenderOptions options)
+        {
+            return CreateExportTransformer(options);
+        }
+
+        public PreviewBitmapRenderResult RenderCombinedViewportBitmap(ViewportBitmapOptions options)
+        {
+            if (options == null) throw new ArgumentNullException("options");
+            RectangleD bounds = GetCombinedBoundsMm();
+            if (bounds.IsEmpty) throw new InvalidOperationException("The bounding box is empty - there is no content to render.");
+            double widthMm = bounds.Width + 2 * options.MarginMm;
+            double heightMm = bounds.Height + 2 * options.MarginMm;
+            double pxPerMm = Math.Min(options.ViewportWidthPx / widthMm, options.ViewportHeightPx / heightMm);
+            int dpi = Math.Max(1, (int)Math.Floor(pxPerMm * 25.4));
+            CoordinateTransformer t = new CoordinateTransformer(bounds, dpi, options.MarginMm);
+            Bitmap bmp = _rasterExportRenderer.RenderCombinedForExport(_layers, t, options.Mode, options.ResolveBackground(), OnProgress);
+            return new PreviewBitmapRenderResult(bmp, t);
+        }
+
+        [Obsolete("Use RenderLayerForExport to make DPI-based raster export usage explicit.")]
+        public Bitmap RenderLayer(GerberLayer layer, RenderOptions options)
+        {
+            return RenderLayerForExport(layer, options);
+        }
+
+        [Obsolete("Use RenderCombinedForExport to make DPI-based raster export usage explicit.")]
+        public Bitmap RenderCombined(RenderOptions options)
+        {
+            return RenderCombinedForExport(options);
         }
 
         // ---------- Render (FR-010..FR-014) ----------
@@ -119,20 +191,20 @@ namespace GerberEngine
         /// <param name="layer"></param>
         /// <param name="options"></param>
         /// <returns></returns>
-        public Bitmap RenderLayer(GerberLayer layer, RenderOptions options)
+        public Bitmap RenderLayerForExport(GerberLayer layer, RenderOptions options)
         {
-            CoordinateTransformer t = CreateTransformer(options);
-            return _renderer.RenderLayerOpaque(layer, t, options.ResolveForeground(layer), options.ResolveBackground());
+            CoordinateTransformer t = CreateExportTransformer(options);
+            return _rasterExportRenderer.RenderLayerOpaqueForExport(layer, t, options.ResolveForeground(layer), options.ResolveBackground());
         }
         /// <summary>
         /// Render combines all visible layers (list order = bottom to top).
         /// </summary>
         /// <param name="options"></param>
         /// <returns></returns>
-        public Bitmap RenderCombined(RenderOptions options)
+        public Bitmap RenderCombinedForExport(RenderOptions options)
         {
-            CoordinateTransformer t = CreateTransformer(options);
-            return _renderer.RenderCombined(_layers, t, options.Mode, options.ResolveBackground(), OnProgress);
+            CoordinateTransformer t = CreateExportTransformer(options);
+            return _rasterExportRenderer.RenderCombinedForExport(_layers, t, options.Mode, options.ResolveBackground(), OnProgress);
         }
 
         private void OnProgress(int done, int total)
@@ -145,13 +217,13 @@ namespace GerberEngine
 
         public void ExportLayerPng(GerberLayer layer, RenderOptions options, string outputPath)
         {
-            using (Bitmap bmp = RenderLayer(layer, options))
+            using (Bitmap bmp = RenderLayerForExport(layer, options))
                 SavePng(bmp, options.Dpi, outputPath);
         }
 
         public void ExportCombinedPng(RenderOptions options, string outputPath)
         {
-            using (Bitmap bmp = RenderCombined(options))
+            using (Bitmap bmp = RenderCombinedForExport(options))
                 SavePng(bmp, options.Dpi, outputPath);
         }
 
