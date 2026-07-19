@@ -1,4 +1,4 @@
-﻿// GerberEngine/CoordinateTransformer.cs
+// GerberEngine/CoordinateTransformer.cs
 // FR-008, FR-009: mm <-> pixels according to DPI; image in Gerber coordinate system (Y up, any angle)
 // to image coordinate system (top-left, Y down), perhaps (margin) so the image is not cropped.
 using System;
@@ -30,6 +30,29 @@ namespace GerberEngine
             _scale = dpi / 25.4;
             PixelWidth = Math.Max(1, (int)Math.Ceiling((boundsMm.Width + 2 * marginMm) * _scale));
             PixelHeight = Math.Max(1, (int)Math.Ceiling((boundsMm.Height + 2 * marginMm) * _scale));
+        }
+
+        private CoordinateTransformer(RectangleD viewportMm, int viewportWidthPx, int viewportHeightPx)
+        {
+            if (viewportMm.IsEmpty)
+                throw new ArgumentException("The viewport is empty - there is no content to render.");
+            if (viewportWidthPx <= 0)
+                throw new ArgumentOutOfRangeException("viewportWidthPx");
+            if (viewportHeightPx <= 0)
+                throw new ArgumentOutOfRangeException("viewportHeightPx");
+            _boundsMm = viewportMm;
+            _marginMm = 0;
+            Dpi = 0;
+            PixelWidth = viewportWidthPx;
+            PixelHeight = viewportHeightPx;
+            double worldWidth = Math.Max(viewportMm.Width, 0.001);
+            double worldHeight = Math.Max(viewportMm.Height, 0.001);
+            _scale = Math.Min(viewportWidthPx / worldWidth, viewportHeightPx / worldHeight);
+        }
+
+        public static CoordinateTransformer FromViewport(RectangleD viewportMm, int viewportWidthPx, int viewportHeightPx)
+        {
+            return new CoordinateTransformer(viewportMm, viewportWidthPx, viewportHeightPx);
         }
         /// <summary>
         /// Convert lengths from millimeters to pixels.

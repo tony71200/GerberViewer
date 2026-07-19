@@ -1,4 +1,4 @@
-﻿// GerberEngine/GerberEngine.cs
+// GerberEngine/GerberEngine.cs
 // GerberEngine's public FACADE API (BR-003, NFR-004).
 // This is a stable contract for reuse: WinForms app, console tool, service...
 // Depends only on System.Drawing - NOT dependent on System.Windows.Forms.
@@ -12,7 +12,7 @@ namespace GerberEngine
     /// <summary>
     /// Render/export options (FR-010, FR-011).
     /// </summary>
-    public sealed class RenderOptions
+    public sealed class RasterExportOptions
     {
         public int Dpi = 600;                            // 150/300/600/1200
         public ColorMode Mode = ColorMode.Realistic;
@@ -32,6 +32,15 @@ namespace GerberEngine
             if (Mode == ColorMode.BinaryMask) return InvertBinary ? Color.Black : Color.White;
             return layer.DisplayColor;
         }
+    }
+
+    public sealed class ViewportBitmapOptions
+    {
+        public int ViewportWidthPx = 1;
+        public int ViewportHeightPx = 1;
+        public RectangleD WorldViewportMm = RectangleD.Empty;
+        public ColorMode Mode = ColorMode.Realistic;
+        public Color Background = GerberRenderer.RealisticBackground;
     }
 
     public sealed class RenderProgressEventArgs : EventArgs
@@ -98,9 +107,15 @@ namespace GerberEngine
         /// </summary>
         /// <param name="options"></param>
         /// <returns></returns>
-        public CoordinateTransformer CreateTransformer(RenderOptions options)
+        public CoordinateTransformer CreateExportTransformer(RasterExportOptions options)
         {
             return new CoordinateTransformer(GetCombinedBoundsMm(), options.Dpi, options.MarginMm);
+        }
+
+        public CoordinateTransformer CreateViewportTransformer(ViewportBitmapOptions options)
+        {
+            RectangleD viewport = options.WorldViewportMm.IsEmpty ? GetCombinedBoundsMm() : options.WorldViewportMm;
+            return CoordinateTransformer.FromViewport(viewport, options.ViewportWidthPx, options.ViewportHeightPx);
         }
 
         // ---------- Render (FR-010..FR-014) ----------
@@ -110,9 +125,9 @@ namespace GerberEngine
         /// <param name="layer"></param>
         /// <param name="options"></param>
         /// <returns></returns>
-        public Bitmap RenderLayer(GerberLayer layer, RenderOptions options)
+        internal Bitmap RenderLayerForExport(GerberLayer layer, RasterExportOptions options)
         {
-            CoordinateTransformer t = CreateTransformer(options);
+            CoordinateTransformer t = CreateExportTransformer(options);
             return _renderer.RenderLayerOpaque(layer, t, options.ResolveForeground(layer), options.ResolveBackground());
         }
         /// <summary>
@@ -120,10 +135,16 @@ namespace GerberEngine
         /// </summary>
         /// <param name="options"></param>
         /// <returns></returns>
-        public Bitmap RenderCombined(RenderOptions options)
+        internal Bitmap RenderCombinedForExport(RasterExportOptions options)
         {
-            CoordinateTransformer t = CreateTransformer(options);
+            CoordinateTransformer t = CreateExportTransformer(options);
             return _renderer.RenderCombined(_layers, t, options.Mode, options.ResolveBackground(), OnProgress);
+        }
+
+        public Bitmap RenderViewportBitmap(ViewportBitmapOptions options)
+        {
+            CoordinateTransformer t = CreateViewportTransformer(options);
+            return _renderer.RenderCombined(_layers, t, options.Mode, options.Background, OnProgress);
         }
 
         private void OnProgress(int done, int total)
@@ -134,15 +155,15 @@ namespace GerberEngine
 
         // ---------- Export PNG (FR-012) ----------
 
-        public void ExportLayerPng(GerberLayer layer, RenderOptions options, string outputPath)
+        public void ExportLayerPng(GerberLayer layer, RasterExportOptions options, string outputPath)
         {
-            using (Bitmap bmp = RenderLayer(layer, options))
+            using (Bitmap bmp = RenderLayerForExport(layer, options))
                 SavePng(bmp, options.Dpi, outputPath);
         }
 
-        public void ExportCombinedPng(RenderOptions options, string outputPath)
+        public void ExportCombinedPng(RasterExportOptions options, string outputPath)
         {
-            using (Bitmap bmp = RenderCombined(options))
+            using (Bitmap bmp = RenderCombinedForExport(options))
                 SavePng(bmp, options.Dpi, outputPath);
         }
 

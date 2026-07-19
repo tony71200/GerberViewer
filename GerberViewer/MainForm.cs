@@ -24,7 +24,6 @@ namespace GerberViewer
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
 
-        private const int PreviewDpi = 300;
         private const int LargePrimitiveWarningThreshold = 50000;
         public MainForm()
         {
@@ -82,7 +81,7 @@ namespace GerberViewer
                 ? "Loaded - " + warnings + " parser warnings (see layer tooltip)"
                 : "Loaded";
             if (primitiveCount >= LargePrimitiveWarningThreshold)
-                lblStatus.Text += " | large scene: " + primitiveCount.ToString("N0") + " primitives; preview uses capped DPI for responsiveness";
+                lblStatus.Text += " | large scene: " + primitiveCount.ToString("N0") + " primitives; preview uses viewport-size fallback for responsiveness";
             RenderPreviewAsync(true);
         }
 
@@ -179,13 +178,26 @@ namespace GerberViewer
 
         // ---------- Render preview nen (FR-016, FR-017) ----------
 
-        private RenderOptions BuildOptions(bool forPreview)
+        private RasterExportOptions BuildExportOptions()
         {
-            int dpi = forPreview ? PreviewDpi : int.Parse(tscDpi.SelectedItem.ToString());
-            return new RenderOptions
+            return new RasterExportOptions
             {
-                Dpi = dpi,
+                Dpi = int.Parse(tscDpi.SelectedItem.ToString()),
                 Mode = tscMode.SelectedIndex == 1 ? ColorMode.BinaryMask : ColorMode.Realistic
+            };
+        }
+
+        private ViewportBitmapOptions BuildPreviewOptions()
+        {
+            RectangleD bounds = _engine.GetCombinedBoundsMm();
+            bounds.Inflate(2.0);
+            return new ViewportBitmapOptions
+            {
+                ViewportWidthPx = Math.Max(1, canvas.ClientSize.Width),
+                ViewportHeightPx = Math.Max(1, canvas.ClientSize.Height),
+                WorldViewportMm = bounds,
+                Mode = tscMode.SelectedIndex == 1 ? ColorMode.BinaryMask : ColorMode.Realistic,
+                Background = tscMode.SelectedIndex == 1 ? Color.Black : GerberRenderer.RealisticBackground
             };
         }
 
@@ -205,13 +217,13 @@ namespace GerberViewer
 
             _rendering = true;
             lblStatus.Text = "Generating preview...";
-            RenderOptions opts = BuildOptions(true);
+            ViewportBitmapOptions opts = BuildPreviewOptions();
 
             // Render o worker thread; Bitmap ban giao quyen so huu cho canvas sau khi xong (Spec 5.1.4)
             Task.Run(() =>
             {
-                CoordinateTransformer t = _engine.CreateTransformer(opts);
-                Bitmap bmp = _engine.RenderCombined(opts);
+                CoordinateTransformer t = _engine.CreateViewportTransformer(opts);
+                Bitmap bmp = _engine.RenderViewportBitmap(opts);
                 return Tuple.Create(bmp, t);
             }).ContinueWith(task =>
             {
@@ -227,9 +239,9 @@ namespace GerberViewer
                     }
                     _previewTransformer = task.Result.Item2;
                     canvas.SetImage(task.Result.Item1, fit);
-                    RectangleD b = _previewTransformer.ContentBoundsMm;
+                    RectangleD b = _engine.GetCombinedBoundsMm();
                     lblBoardSize.Text = string.Format("Board: {0:0.##} x {1:0.##} mm", b.Width, b.Height);
-                    lblStatus.Text = "Ready (preview transform, Export DPI independent)";
+                    lblStatus.Text = "Ready (viewport preview, Export DPI independent)";
                     UpdateZoomLabel();
                 }));
             });
@@ -269,7 +281,7 @@ namespace GerberViewer
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 RunExport(() =>
                 {
-                    RenderOptions opts = BuildOptions(false);
+                    RasterExportOptions opts = BuildExportOptions();
                     foreach (GerberLayer layer in targets)
                     {
                         string name = Path.GetFileNameWithoutExtension(layer.FileName)
@@ -288,7 +300,7 @@ namespace GerberViewer
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 RunExport(() =>
                 {
-                    _engine.ExportCombinedPng(BuildOptions(false), dlg.FileName);
+                    _engine.ExportCombinedPng(BuildExportOptions(), dlg.FileName);
                     return "Da xuat " + dlg.FileName;
                 });
             }
