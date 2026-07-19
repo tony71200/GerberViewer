@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GerberEngine
@@ -27,7 +28,10 @@ namespace GerberEngine
         private RegionPrimitive _region;
         private RegionContour _contour;
         private GerberLayer _layer;
+        private const int ProgressPrimitiveBatchSize = 10000;
         private int _lineNo;
+        private CancellationToken _cancellationToken;
+        private Action<string> _reportProgress;
         /// <summary>
         /// Parse a Gerber file into a GerberLayer. Do not throw an exception for the singular syntax error (NFR-003).
         /// </summary>
@@ -35,16 +39,54 @@ namespace GerberEngine
         /// <returns></returns>
         public GerberLayer ParseFile(string path)
         {
+            return ParseFile(path, CancellationToken.None, null);
+        }
+
+        public GerberLayer ParseFile(string path, Action<string> reportProgress)
+        {
+            return ParseFile(path, CancellationToken.None, reportProgress);
+        }
+
+        public GerberLayer ParseFile(string path, CancellationToken cancellationToken)
+        {
+            return ParseFile(path, cancellationToken, null);
+        }
+
+        public GerberLayer ParseFile(string path, CancellationToken cancellationToken, Action<string> reportProgress)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Report(reportProgress, "Reading file");
             string content = File.ReadAllText(path);
-            return ParseContent(path, content);
+            return ParseContent(path, content, cancellationToken, reportProgress);
         }
 
         public GerberLayer ParseContent(string path, string content)
         {
+            return ParseContent(path, content, CancellationToken.None, null);
+        }
+
+        public GerberLayer ParseContent(string path, string content, Action<string> reportProgress)
+        {
+            return ParseContent(path, content, CancellationToken.None, reportProgress);
+        }
+
+        public GerberLayer ParseContent(string path, string content, CancellationToken cancellationToken)
+        {
+            return ParseContent(path, content, cancellationToken, null);
+        }
+
+        public GerberLayer ParseContent(string path, string content, CancellationToken cancellationToken, Action<string> reportProgress)
+        {
+            _cancellationToken = cancellationToken;
+            _reportProgress = reportProgress;
             _layer = new GerberLayer { FilePath = path, FileName = Path.GetFileName(path) };
+            Report("Parsing commands");
             Parse(content);
+            cancellationToken.ThrowIfCancellationRequested();
+            Report("Detecting layer type");
             if (_layer.Type == LayerType.Unknown)
                 _layer.Type = LayerTypeDetector.DetectFromFileName(_layer.FileName);
+            Report("Parsing complete");
             return _layer;
         }
 
@@ -54,8 +96,10 @@ namespace GerberEngine
             var word = new StringBuilder();
             _lineNo = 1;
 
+            int commandCount = 0;
             while (i < n)
             {
+                _cancellationToken.ThrowIfCancellationRequested();
                 char c = content[i];
                 if (c == '\n') { _lineNo++; i++; continue; }
                 if (c == '\r' || c == ' ' || c == '\t') { i++; continue; }
@@ -68,6 +112,8 @@ namespace GerberEngine
                     string block = content.Substring(i + 1, end - i - 1);
                     CountLines(block);
                     SafeExec(() => HandleExtended(block));
+                    commandCount++;
+                    if (commandCount % ProgressPrimitiveBatchSize == 0) Report("Parsed " + commandCount.ToString(CultureInfo.InvariantCulture) + " commands");
                     i = end + 1;
                     continue;
                 }
@@ -77,7 +123,12 @@ namespace GerberEngine
                 if (star < 0) break;
                 string wordCmd = content.Substring(i, star - i).Trim();
                 CountLines(content.Substring(i, star - i));
-                if (wordCmd.Length > 0) SafeExec(() => HandleWord(wordCmd));
+                if (wordCmd.Length > 0)
+                {
+                    SafeExec(() => HandleWord(wordCmd));
+                    commandCount++;
+                    if (commandCount % ProgressPrimitiveBatchSize == 0) Report("Parsed " + commandCount.ToString(CultureInfo.InvariantCulture) + " commands");
+                }
                 i = star + 1;
             }
         }
@@ -90,6 +141,7 @@ namespace GerberEngine
         private void SafeExec(Action a)
         {
             try { a(); }
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex) { Warn("Bo qua lenh loi: " + ex.Message); }
         }
 
@@ -98,13 +150,27 @@ namespace GerberEngine
             _layer.Warnings.Add("Dong " + _lineNo + ": " + msg);
         }
 
+        private void Report(string stage)
+        {
+            Report(_reportProgress, stage);
+        }
+
+        private static void Report(Action<string> reportProgress, string stage)
+        {
+            if (reportProgress != null) reportProgress(stage);
+        }
+
         // ---------- Extended commands (%...%) ----------
         private void HandleExtended(string block)
         {
             // Mot block co the chua nhieu lenh phan cach '*'
             string[] cmds = block.Split(new[] { '*' }, StringSplitOptions.RemoveEmptyEntries);
+            int blockIndex = 0;
             foreach (string raw in cmds)
             {
+                _cancellationToken.ThrowIfCancellationRequested();
+                blockIndex++;
+                if (blockIndex % ProgressPrimitiveBatchSize == 0) Report("Parsed " + blockIndex.ToString(CultureInfo.InvariantCulture) + " extended commands");
                 string cmd = raw.Trim().TrimStart('\r', '\n');
                 if (cmd.Length < 2) continue;
 
@@ -200,8 +266,12 @@ namespace GerberEngine
             // %AMNAME*block1*block2*...*%  - firstCmd la "AMNAME", cac block la phan tu sau trong allCmds
             var macro = new ApertureMacro { Name = firstCmd.Substring(2).Trim() };
             bool after = false;
+            int blockIndex = 0;
             foreach (string cmd in allCmds)
             {
+                _cancellationToken.ThrowIfCancellationRequested();
+                blockIndex++;
+                if (blockIndex % ProgressPrimitiveBatchSize == 0) Report("Parsed " + blockIndex.ToString(CultureInfo.InvariantCulture) + " macro blocks");
                 if (!after) { if (ReferenceEquals(cmd, firstCmd) || cmd.Trim() == firstCmd) after = true; continue; }
                 macro.Blocks.Add(cmd.Trim());
             }
