@@ -1,4 +1,4 @@
-﻿// GerberEngine/GerberParser.cs
+// GerberEngine/GerberParser.cs
 // Parser RS-274X / Gerber X2 (FR-001, FR-002, FR-007, NFR-003).
 // Output: GerberLayer with primitives that adjust the height and angle of Gerber (Y len).
 using System;
@@ -35,8 +35,13 @@ namespace GerberEngine
         /// <returns></returns>
         public GerberLayer ParseFile(string path)
         {
-            _layer = new GerberLayer { FilePath = path, FileName = Path.GetFileName(path) };
             string content = File.ReadAllText(path);
+            return ParseContent(path, content);
+        }
+
+        public GerberLayer ParseContent(string path, string content)
+        {
+            _layer = new GerberLayer { FilePath = path, FileName = Path.GetFileName(path) };
             Parse(content);
             if (_layer.Type == LayerType.Unknown)
                 _layer.Type = LayerTypeDetector.DetectFromFileName(_layer.FileName);

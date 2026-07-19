@@ -32,9 +32,15 @@ namespace GerberEngine
 
         public string Render(GerberScene scene, SvgRenderOptions options, CancellationToken cancellationToken)
         {
+            return Render(scene, options, cancellationToken, null);
+        }
+
+        public string Render(GerberScene scene, SvgRenderOptions options, CancellationToken cancellationToken, Action<string> reportProgress)
+        {
             if (scene == null) throw new ArgumentNullException("scene");
             if (options == null) options = new SvgRenderOptions();
 
+            Report(reportProgress, "Calculating bounds");
             RectangleD bounds = scene.GetBoundsMm();
             if (bounds.IsEmpty)
             {
@@ -57,6 +63,8 @@ namespace GerberEngine
                 writer.WriteAttributeString("viewBox", Format(bounds.MinX) + " " + Format(-bounds.MaxY) + " " + Format(width) + " " + Format(height));
                 writer.WriteAttributeString("xmlns", "xlink", null, "http://www.w3.org/1999/xlink");
 
+                Report(reportProgress, "Generating SVG definitions");
+
                 if (options.IncludeBackground)
                 {
                     writer.WriteStartElement("rect");
@@ -68,6 +76,7 @@ namespace GerberEngine
                     writer.WriteEndElement();
                 }
 
+                Report(reportProgress, "Generating layer geometry");
                 writer.WriteStartElement("g");
                 writer.WriteAttributeString("transform", "scale(1,-1)");
                 int layerIndex = 0;
@@ -82,6 +91,11 @@ namespace GerberEngine
                 writer.WriteEndElement();
             }
             return sb.ToString();
+        }
+
+        private static void Report(Action<string> reportProgress, string stage)
+        {
+            if (reportProgress != null) reportProgress(stage);
         }
 
         private static void WriteLayer(XmlWriter writer, GerberSceneLayer layer, string color, int layerIndex, CancellationToken cancellationToken)
