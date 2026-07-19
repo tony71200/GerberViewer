@@ -87,7 +87,7 @@
             //
             this.tslDpi.Text = "DPI:";
             this.tscDpi.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.tscDpi.Items.AddRange(new object[] { "150", "300", "600", "1200" });
+            this.tscDpi.Items.AddRange(new object[] { "150", "300", "600", "1200", "3600", "4800"});
             this.tscDpi.Size = new System.Drawing.Size(70, 25);
             this.tslMode.Text = "Mau:";
             this.tscMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;

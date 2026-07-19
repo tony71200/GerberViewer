@@ -24,11 +24,11 @@ namespace GerberViewer
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
 
-        private const int PreviewDpiCap = 600; // preview gioi han DPI de UI muot (Spec 5.1.2); export dung DPI that
+        private const int PreviewDpiCap = 6000; // preview gioi han DPI de UI muot (Spec 5.1.2); export dung DPI that
         public MainForm()
         {
             InitializeComponent();
-            tscDpi.SelectedIndex = 2;    // 600
+            tscDpi.SelectedIndex = 3;    // 600
             tscMode.SelectedIndex = 0;   // Realistic
             // Event co generic args - wire tay o day (Designer khong serialize duoc EventHandler<PointF?>)
             canvas.ImageCursorMoved += Canvas_ImageCursorMoved;

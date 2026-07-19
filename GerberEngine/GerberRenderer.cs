@@ -14,7 +14,7 @@ namespace GerberEngine
     public sealed class GerberRenderer
     {
         /// <summary>Gioi han pixel de tranh OutOfMemory GDI+ (Spec 5.1.2). ~1 GB @ 4 byte/px.</summary>
-        public const long MaxPixels = 260000000L;
+        public const long MaxPixels = 1040000000L;
 
         // ---------- API render ----------
 
