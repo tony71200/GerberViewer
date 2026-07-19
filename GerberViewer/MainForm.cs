@@ -263,18 +263,18 @@ namespace GerberViewer
 
         // ---------- Render preview nen (FR-016, FR-017) ----------
 
-        private RenderOptions BuildExportOptions()
+        private RasterExportOptions BuildExportOptions()
         {
-            return new RenderOptions
+            return new RasterExportOptions
             {
                 Dpi = int.Parse(tscDpi.SelectedItem.ToString()),
                 Mode = tscMode.SelectedIndex == 1 ? ColorMode.BinaryMask : ColorMode.Realistic
             };
         }
 
-        private ViewportBitmapOptions BuildPreviewOptions()
+        private PreviewSettings BuildPreviewSettings()
         {
-            return new ViewportBitmapOptions
+            return new PreviewSettings
             {
                 ViewportWidthPx = Math.Max(1, canvas.ClientSize.Width),
                 ViewportHeightPx = Math.Max(1, canvas.ClientSize.Height),
@@ -337,13 +337,13 @@ namespace GerberViewer
             bool useSvg = svgViewer.IsAvailable;
             GerberScene scene = CreateVisibleSceneSnapshot();
             SvgRenderOptions svgOptions = BuildSvgOptions();
-            ViewportBitmapOptions bitmapOptions = BuildPreviewOptions();
+            PreviewSettings previewSettings = BuildPreviewSettings();
 
             Task.Run<object>(() =>
             {
                 token.ThrowIfCancellationRequested();
                 if (useSvg) return new GerberSvgRenderer().Render(scene, svgOptions, token);
-                return _engine.RenderCombinedViewportBitmap(bitmapOptions);
+                return _engine.RenderCombinedViewportBitmap(previewSettings);
             }, token).ContinueWith(task =>
             {
                 if (IsDisposed || !IsHandleCreated) return;
@@ -441,7 +441,7 @@ namespace GerberViewer
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 RunExport(() =>
                 {
-                    RenderOptions opts = BuildExportOptions();
+                    RasterExportOptions opts = BuildExportOptions();
                     foreach (GerberLayer layer in targets)
                     {
                         string name = Path.GetFileNameWithoutExtension(layer.FileName)
