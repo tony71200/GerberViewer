@@ -27,7 +27,7 @@ namespace GerberViewer
         private readonly List<PointF> _pendingImagePoints = new List<PointF>();
         private readonly List<PointD> _pendingWorldPoints = new List<PointD>();
 
-        private const int PreviewDpi = 300;
+        private const int PreviewMaxDpi = 300;
         private const int LargePrimitiveWarningThreshold = 50000;
         public MainForm()
         {
@@ -87,7 +87,7 @@ namespace GerberViewer
                 ? "Loaded - " + warnings + " parser warnings (see layer tooltip)"
                 : "Loaded";
             if (primitiveCount >= LargePrimitiveWarningThreshold)
-                lblStatus.Text += " | large scene: " + primitiveCount.ToString("N0") + " primitives; preview uses capped DPI for responsiveness";
+                lblStatus.Text += " | large scene: " + primitiveCount.ToString("N0") + " primitives; preview uses viewport-sized raster fallback for responsiveness";
             RenderPreviewAsync(true);
         }
 
@@ -186,12 +186,25 @@ namespace GerberViewer
 
         private RenderOptions BuildOptions(bool forPreview)
         {
-            int dpi = forPreview ? PreviewDpi : int.Parse(tscDpi.SelectedItem.ToString());
+            int dpi = forPreview ? CalculateViewportPreviewDpi() : int.Parse(tscDpi.SelectedItem.ToString());
             return new RenderOptions
             {
                 Dpi = dpi,
                 Mode = tscMode.SelectedIndex == 1 ? ColorMode.BinaryMask : ColorMode.Realistic
             };
+        }
+
+        private int CalculateViewportPreviewDpi()
+        {
+            RectangleD bounds = _engine.GetCombinedBoundsMm();
+            if (bounds.IsEmpty || canvas.ClientSize.Width <= 0 || canvas.ClientSize.Height <= 0) return PreviewMaxDpi;
+
+            double widthMm = Math.Max(1e-6, bounds.Width + 4.0);
+            double heightMm = Math.Max(1e-6, bounds.Height + 4.0);
+            double dpiX = canvas.ClientSize.Width * 25.4 / widthMm;
+            double dpiY = canvas.ClientSize.Height * 25.4 / heightMm;
+            int dpi = (int)Math.Floor(Math.Min(dpiX, dpiY) * 1.5);
+            return Math.Max(25, Math.Min(PreviewMaxDpi, dpi));
         }
 
         private void tsbRender_Click(object sender, EventArgs e) { RenderPreviewAsync(true); }
@@ -258,7 +271,7 @@ namespace GerberViewer
                     canvas.SetImage(task.Result.Item1, fit);
                     RectangleD b = _previewTransformer.ContentBoundsMm;
                     lblBoardSize.Text = string.Format("Board: {0:0.##} x {1:0.##} mm", b.Width, b.Height);
-                    lblStatus.Text = "Ready (preview transform, Export DPI independent)";
+                    lblStatus.Text = "Ready (viewport preview, Export DPI independent)";
                     UpdateZoomLabel();
                 }));
             });
