@@ -69,6 +69,9 @@
     <Compile Include="GerberCanvas.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="GerberSvgViewerControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -98,6 +101,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GerberEngine\GerberEngine.csproj">

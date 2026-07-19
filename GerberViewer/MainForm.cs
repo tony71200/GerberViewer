@@ -25,6 +25,7 @@ namespace GerberViewer
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
         private CancellationTokenSource _loadFilesCts;
+        private CancellationTokenSource _previewCts;
 
         private const int LargePrimitiveWarningThreshold = 50000;
         public MainForm()
@@ -34,6 +35,7 @@ namespace GerberViewer
             tscMode.SelectedIndex = 0;   // Realistic
             // Event co generic args - wire tay o day (Designer khong serialize duoc EventHandler<PointF?>)
             canvas.ImageCursorMoved += Canvas_ImageCursorMoved;
+            InitializeSvgViewerAsync();
         }
 
         // ---------- Nap file (FR-003) ----------
@@ -281,11 +283,42 @@ namespace GerberViewer
         }
 
         private void tsbRender_Click(object sender, EventArgs e) { RenderPreviewAsync(true); }
-        private void tsbFit_Click(object sender, EventArgs e) { canvas.FitToView(); UpdateZoomLabel(); }
+        private void tsbFit_Click(object sender, EventArgs e)
+        {
+            if (svgViewer.Visible && svgViewer.IsAvailable) svgViewer.FitToView();
+            else { canvas.FitToView(); UpdateZoomLabel(); }
+        }
+
+        private async void InitializeSvgViewerAsync()
+        {
+            await svgViewer.EnsureInitializedAsync();
+            if (svgViewer.IsAvailable)
+            {
+                svgViewer.Visible = true;
+                canvas.Visible = false;
+                canvas.SetImage(null, false);
+            }
+        }
+
+        private SvgRenderOptions BuildSvgOptions()
+        {
+            return new SvgRenderOptions
+            {
+                Mode = tscMode.SelectedIndex == 1 ? ColorMode.BinaryMask : ColorMode.Realistic,
+                IncludeBackground = true
+            };
+        }
+
+        private GerberScene CreateVisibleSceneSnapshot()
+        {
+            var scene = new GerberScene();
+            foreach (GerberLayer layer in _engine.Layers)
+                if (layer.Visible) scene.AddLayer(layer);
+            return scene;
+        }
 
         private void RenderPreviewAsync(bool fit)
         {
-            if (_rendering) return;
             if (_engine.GetCombinedBoundsMm().IsEmpty)
             {
                 canvas.SetImage(null, false);
@@ -294,19 +327,33 @@ namespace GerberViewer
                 return;
             }
 
-            _rendering = true;
-            lblStatus.Text = "Generating preview...";
-            ViewportBitmapOptions opts = BuildPreviewOptions();
+            if (_previewCts != null) _previewCts.Cancel();
+            CancellationTokenSource currentRender = new CancellationTokenSource();
+            _previewCts = currentRender;
+            CancellationToken token = currentRender.Token;
 
-            // Render o worker thread; Bitmap ban giao quyen so huu cho canvas sau khi xong (Spec 5.1.4)
-            Task.Run(() =>
+            _rendering = true;
+            lblStatus.Text = svgViewer.IsAvailable ? "Generating SVG preview..." : "Generating bitmap fallback preview...";
+            bool useSvg = svgViewer.IsAvailable;
+            GerberScene scene = CreateVisibleSceneSnapshot();
+            SvgRenderOptions svgOptions = BuildSvgOptions();
+            ViewportBitmapOptions bitmapOptions = BuildPreviewOptions();
+
+            Task.Run<object>(() =>
             {
-                return _engine.RenderCombinedViewportBitmap(opts);
-            }).ContinueWith(task =>
+                token.ThrowIfCancellationRequested();
+                if (useSvg) return new GerberSvgRenderer().Render(scene, svgOptions, token);
+                return _engine.RenderCombinedViewportBitmap(bitmapOptions);
+            }, token).ContinueWith(task =>
             {
-                BeginInvoke((Action)(() =>
+                if (IsDisposed || !IsHandleCreated) return;
+                BeginInvoke((Action)(async () =>
                 {
+                    if (!ReferenceEquals(_previewCts, currentRender)) return;
                     _rendering = false;
+                    _previewCts = null;
+                    currentRender.Dispose();
+                    if (task.IsCanceled) return;
                     if (task.IsFaulted)
                     {
                         string msg = task.Exception.GetBaseException().Message;
@@ -314,12 +361,38 @@ namespace GerberViewer
                         MessageBox.Show(this, msg, "Render", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
+
                     DisposePreviewRenderResult();
-                    _previewRenderResult = task.Result;
-                    canvas.SetImage(_previewRenderResult.Bitmap, fit);
-                    RectangleD b = _previewRenderResult.ContentBoundsMm;
+                    RectangleD b = scene.GetBoundsMm();
                     lblBoardSize.Text = string.Format("Board: {0:0.##} x {1:0.##} mm", b.Width, b.Height);
-                    lblStatus.Text = "Ready (preview transform, Export DPI independent)";
+
+                    if (useSvg)
+                    {
+                        try
+                        {
+                            await svgViewer.LoadSvg((string)task.Result);
+                            svgViewer.Visible = true;
+                            canvas.Visible = false;
+                            canvas.SetImage(null, false);
+                            if (fit) svgViewer.FitToView();
+                            lblStatus.Text = "Ready (SVG/WebView2 preview, Export DPI independent)";
+                            UpdateZoomLabel();
+                            return;
+                        }
+                        catch
+                        {
+                            svgViewer.Visible = false;
+                            canvas.Visible = true;
+                            RenderPreviewAsync(fit);
+                            return;
+                        }
+                    }
+
+                    _previewRenderResult = (PreviewBitmapRenderResult)task.Result;
+                    canvas.Visible = true;
+                    svgViewer.Visible = false;
+                    canvas.SetImage(_previewRenderResult.Bitmap, fit);
+                    lblStatus.Text = "Ready (bitmap fallback preview, Export DPI independent)";
                     UpdateZoomLabel();
                 }));
             });

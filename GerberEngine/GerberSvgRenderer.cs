@@ -102,6 +102,8 @@ namespace GerberEngine
             writer.WriteEndElement();
 
             writer.WriteStartElement("g");
+            writer.WriteAttributeString("id", "gerber-layer-" + layerIndex.ToString(Invariant));
+            writer.WriteAttributeString("data-layer-index", layerIndex.ToString(Invariant));
             writer.WriteAttributeString("mask", "url(#" + maskId + ")");
             foreach (GerberScenePrimitive primitive in layer.Primitives)
             {
@@ -298,6 +300,8 @@ namespace GerberEngine
                 if (!string.IsNullOrEmpty(options.BinaryForegroundColor)) return options.BinaryForegroundColor;
                 return options.InvertBinary ? "black" : "white";
             }
+            GerberLayer gerberLayer = layer as GerberLayer;
+            if (gerberLayer != null) return ColorToSvg(gerberLayer.DisplayColor);
             switch (layer.Type)
             {
                 case LayerType.TopCopper:
@@ -311,6 +315,11 @@ namespace GerberEngine
                 case LayerType.Drill: return "#282828";
                 default: return index % 2 == 0 ? "gold" : "#D0D0D0";
             }
+        }
+
+        private static string ColorToSvg(System.Drawing.Color color)
+        {
+            return "#" + color.R.ToString("X2", Invariant) + color.G.ToString("X2", Invariant) + color.B.ToString("X2", Invariant);
         }
 
         private static string Format(double value)
