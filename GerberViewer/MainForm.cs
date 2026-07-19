@@ -1,4 +1,4 @@
-// GerberViewer/MainForm.cs
+﻿// GerberViewer/MainForm.cs
 // The entire logic of the form (Designer.cs only has the layout).
 
 // Online simulation functions (gerberviewer.com): drag and drop multiple files, list of classes
@@ -20,19 +20,15 @@ namespace GerberViewer
     public partial class MainForm : Form
     {
         private readonly GerberEngineFacade _engine = new GerberEngineFacade();
-        private CoordinateTransformer _previewTransformer;   // doi chieu toa do chuot (FR-009)
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
 
-        private const int PreviewDpi = 300;
         private const int LargePrimitiveWarningThreshold = 50000;
         public MainForm()
         {
             InitializeComponent();
             tscDpi.SelectedIndex = 2;    // 600 Export DPI
             tscMode.SelectedIndex = 0;   // Realistic
-            // Event co generic args - wire tay o day (Designer khong serialize duoc EventHandler<PointF?>)
-            canvas.ImageCursorMoved += Canvas_ImageCursorMoved;
         }
 
         // ---------- Nap file (FR-003) ----------
@@ -82,7 +78,7 @@ namespace GerberViewer
                 ? "Loaded - " + warnings + " parser warnings (see layer tooltip)"
                 : "Loaded";
             if (primitiveCount >= LargePrimitiveWarningThreshold)
-                lblStatus.Text += " | large scene: " + primitiveCount.ToString("N0") + " primitives; preview uses capped DPI for responsiveness";
+                lblStatus.Text += " | large scene: " + primitiveCount.ToString("N0") + " primitives; SVG preview uses vector refinement path";
             RenderPreviewAsync(true);
         }
 
@@ -179,40 +175,45 @@ namespace GerberViewer
 
         // ---------- Render preview nen (FR-016, FR-017) ----------
 
-        private RenderOptions BuildOptions(bool forPreview)
+        private SvgRenderOptions BuildPreviewOptions()
         {
-            int dpi = forPreview ? PreviewDpi : int.Parse(tscDpi.SelectedItem.ToString());
-            return new RenderOptions
+            return new SvgRenderOptions
             {
-                Dpi = dpi,
+                Mode = tscMode.SelectedIndex == 1 ? ColorMode.BinaryMask : ColorMode.Realistic
+            };
+        }
+
+        private RasterExportOptions BuildExportOptionsOnUiThread()
+        {
+            return new RasterExportOptions
+            {
+                Dpi = int.Parse(tscDpi.SelectedItem.ToString()),
                 Mode = tscMode.SelectedIndex == 1 ? ColorMode.BinaryMask : ColorMode.Realistic
             };
         }
 
         private void tsbRender_Click(object sender, EventArgs e) { RenderPreviewAsync(true); }
-        private void tsbFit_Click(object sender, EventArgs e) { canvas.FitToView(); UpdateZoomLabel(); }
+        private void tsbFit_Click(object sender, EventArgs e) { previewHost.FitToView(); UpdateZoomLabel(); }
 
         private void RenderPreviewAsync(bool fit)
         {
             if (_rendering) return;
             if (_engine.GetCombinedBoundsMm().IsEmpty)
             {
-                canvas.SetImage(null, false);
-                _previewTransformer = null;
+                previewHost.SetSvg(null, false);
                 lblBoardSize.Text = "";
                 return;
             }
 
             _rendering = true;
             lblStatus.Text = "Generating preview...";
-            RenderOptions opts = BuildOptions(true);
+            SvgRenderOptions opts = BuildPreviewOptions();
 
             // Render o worker thread; Bitmap ban giao quyen so huu cho canvas sau khi xong (Spec 5.1.4)
             Task.Run(() =>
             {
-                CoordinateTransformer t = _engine.CreateTransformer(opts);
-                Bitmap bmp = _engine.RenderCombined(opts);
-                return Tuple.Create(bmp, t);
+                string svg = _engine.RenderCombinedSvg(opts);
+                return svg;
             }).ContinueWith(task =>
             {
                 BeginInvoke((Action)(() =>
@@ -225,11 +226,10 @@ namespace GerberViewer
                         MessageBox.Show(this, msg, "Render", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
-                    _previewTransformer = task.Result.Item2;
-                    canvas.SetImage(task.Result.Item1, fit);
-                    RectangleD b = _previewTransformer.ContentBoundsMm;
+                    previewHost.SetSvg(task.Result, fit);
+                    RectangleD b = _engine.GetCombinedBoundsMm();
                     lblBoardSize.Text = string.Format("Board: {0:0.##} x {1:0.##} mm", b.Width, b.Height);
-                    lblStatus.Text = "Ready (preview transform, Export DPI independent)";
+                    lblStatus.Text = "Ready (SVG preview, Export DPI independent)";
                     UpdateZoomLabel();
                 }));
             });
@@ -237,22 +237,9 @@ namespace GerberViewer
 
         // ---------- Toa do chuot (FR-009) ----------
 
-        private void Canvas_ImageCursorMoved(object sender, PointF? imagePx)
-        {
-            UpdateZoomLabel();
-            if (imagePx == null || _previewTransformer == null)
-            {
-                lblCoords.Text = "X: -  Y: -";
-                return;
-            }
-            PointD mm = _previewTransformer.ToMm(imagePx.Value.X, imagePx.Value.Y);
-            lblCoords.Text = string.Format("X: {0:0.###} mm ({1:0.####}\")  Y: {2:0.###} mm ({3:0.####}\")",
-                mm.X, mm.X / 25.4, mm.Y, mm.Y / 25.4);
-        }
-
         private void UpdateZoomLabel()
         {
-            lblZoom.Text = canvas.HasImage ? string.Format("Zoom: {0:0}%", canvas.Zoom * 100) : "Zoom: -";
+            lblZoom.Text = previewHost.HasPreview ? string.Format("Zoom: {0:0}%", previewHost.Zoom * 100) : "Zoom: -";
         }
 
         // ---------- Export PNG (FR-012) ----------
@@ -267,9 +254,10 @@ namespace GerberViewer
             using (var dlg = new FolderBrowserDialog { Description = "Choose folder for per-layer PNG export" })
             {
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                RasterExportOptions exportOptions = BuildExportOptionsOnUiThread();
                 RunExport(() =>
                 {
-                    RenderOptions opts = BuildOptions(false);
+                    RasterExportOptions opts = exportOptions;
                     foreach (GerberLayer layer in targets)
                     {
                         string name = Path.GetFileNameWithoutExtension(layer.FileName)
@@ -286,9 +274,10 @@ namespace GerberViewer
             using (var dlg = new SaveFileDialog { Filter = "PNG image|*.png", FileName = "board_combined.png" })
             {
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                RasterExportOptions exportOptions = BuildExportOptionsOnUiThread();
                 RunExport(() =>
                 {
-                    _engine.ExportCombinedPng(BuildOptions(false), dlg.FileName);
+                    _engine.ExportCombinedPng(exportOptions, dlg.FileName);
                     return "Da xuat " + dlg.FileName;
                 });
             }

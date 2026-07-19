@@ -109,6 +109,7 @@ namespace GerberEngine
                 else if (cmd.StartsWith("AM")) { ParseMacro(cmd, cmds); return; } // AM nuot cac block sau trong cung %..%
                 else if (cmd.StartsWith("LPD")) _polarity = GerberPolarity.Dark;
                 else if (cmd.StartsWith("LPC")) _polarity = GerberPolarity.Clear;
+                else if (cmd == "AD") { /* empty/placeholder aperture command: no-op */ }
                 else if (cmd.StartsWith("TF.FileFunction")) ParseFileFunction(cmd);
                 else if (cmd.StartsWith("TF") || cmd.StartsWith("TA") || cmd.StartsWith("TO") || cmd.StartsWith("TD")) { /* X2 attribute khac: bo qua */ }
                 else if (cmd.StartsWith("IP") || cmd.StartsWith("LN") || cmd.StartsWith("SR") || cmd.StartsWith("OF") || cmd.StartsWith("AS") || cmd.StartsWith("IN") || cmd.StartsWith("MI") || cmd.StartsWith("SF")) { /* deprecated/khong ho tro */ }

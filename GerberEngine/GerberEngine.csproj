@@ -64,9 +64,11 @@
     <Compile Include="ApertureMacroProcessor.cs" />
     <Compile Include="CoordinateTransformer.cs" />
     <Compile Include="GerberEngine.cs" />
+    <Compile Include="GerberSvgRenderer.cs" />
+    <Compile Include="RenderOptions.cs" />
     <Compile Include="GerberModels.cs" />
     <Compile Include="GerberParser.cs" />
-    <Compile Include="GerberRenderer.cs" />
+    <Compile Include="GerberRasterExportRenderer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

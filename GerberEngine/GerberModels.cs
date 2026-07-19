@@ -235,6 +235,44 @@ namespace GerberEngine
             return b;
         }
     }
+
+    /// <summary>
+    /// DPI-independent scene shared by SVG preview and PNG export.
+    /// </summary>
+    public sealed class GerberScene
+    {
+        public List<GerberSceneLayer> Layers = new List<GerberSceneLayer>();
+
+        public RectangleD GetCombinedBoundsMm()
+        {
+            RectangleD b = RectangleD.Empty;
+            foreach (GerberSceneLayer l in Layers)
+                if (l.Visible) b.Expand(l.GetBoundsMm());
+            return b;
+        }
+    }
+
+    /// <summary>
+    /// One rendered Gerber file in the shared world-millimeter scene.
+    /// </summary>
+    public sealed class GerberSceneLayer
+    {
+        public GerberLayer SourceLayer;
+        public string Id;
+        public string Name;
+        public LayerType Type;
+        public bool Visible = true;
+        public Color DisplayColor = Color.Gold;
+        public List<GerberPrimitive> Primitives = new List<GerberPrimitive>();
+
+        public RectangleD GetBoundsMm()
+        {
+            RectangleD b = RectangleD.Empty;
+            foreach (GerberPrimitive p in Primitives) b.Expand(p.GetBoundsMm());
+            return b;
+        }
+    }
+
     /// <summary>
     /// A Gerber layer parses (one file = one layer, FR-003).
     /// </summary>

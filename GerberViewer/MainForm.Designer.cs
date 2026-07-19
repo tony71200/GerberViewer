@@ -49,7 +49,7 @@
             this.miMoveUp = new System.Windows.Forms.ToolStripMenuItem();
             this.miMoveDown = new System.Windows.Forms.ToolStripMenuItem();
             this.miRemove = new System.Windows.Forms.ToolStripMenuItem();
-            this.canvas = new GerberViewer.GerberCanvas();
+            this.previewHost = new GerberViewer.GerberPreviewHost();
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.lblStatus = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblBoardSize = new System.Windows.Forms.ToolStripStatusLabel();
@@ -115,7 +115,7 @@
             this.splitContainer.SplitterDistance = 260;
             this.splitContainer.BackColor = System.Drawing.Color.FromArgb(20, 22, 22);
             this.splitContainer.Panel1.Controls.Add(this.lvLayers);
-            this.splitContainer.Panel2.Controls.Add(this.canvas);
+            this.splitContainer.Panel2.Controls.Add(this.previewHost);
             //
             // lvLayers
             //
@@ -158,10 +158,10 @@
             this.miRemove.Text = "Remove layer";
             this.miRemove.Click += new System.EventHandler(this.miRemove_Click);
             //
-            // canvas (custom control - logic o GerberCanvas.cs, Spec 5.2.2)
+            // previewHost (SVG/browser preview host)
             //
-            this.canvas.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.canvas.Name = "canvas";
+            this.previewHost.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.previewHost.Name = "previewHost";
             //
             // statusStrip
             //
@@ -227,7 +227,7 @@
         private System.Windows.Forms.ToolStripMenuItem miMoveUp;
         private System.Windows.Forms.ToolStripMenuItem miMoveDown;
         private System.Windows.Forms.ToolStripMenuItem miRemove;
-        private GerberCanvas canvas;
+        private GerberPreviewHost previewHost;
 
         private System.Windows.Forms.StatusStrip statusStrip;
         private System.Windows.Forms.ToolStripStatusLabel lblStatus;

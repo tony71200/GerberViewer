@@ -1,4 +1,4 @@
-﻿// GerberEngine/GerberRenderer.cs
+﻿// GerberEngine/GerberRasterExportRenderer.cs
 // Rasterize GerberLayer using GDI+ (FR-005, FR-011, FR-014).
 // Polarity strategy (FR-013): render each layer into a separate 32bppArgb bitmap, so it should be transparent;
 // LPC/exposure-off to CompositingMode.SourceCopy + transparent color => EXAMINE within the layer area,
@@ -14,7 +14,7 @@ using System.Drawing.Imaging;
 
 namespace GerberEngine
 {
-    public sealed class GerberRenderer
+    public sealed class GerberRasterExportRenderer
     {
         /// <summary>
         /// Pixel limits to avoid OutOfMemory in GDI+ (Spec 5.1.2). 

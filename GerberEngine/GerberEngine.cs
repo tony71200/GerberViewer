@@ -9,31 +9,6 @@ using System.Drawing.Imaging;
 
 namespace GerberEngine
 {
-    /// <summary>
-    /// Render/export options (FR-010, FR-011).
-    /// </summary>
-    public sealed class RenderOptions
-    {
-        public int Dpi = 600;                            // 150/300/600/1200
-        public ColorMode Mode = ColorMode.Realistic;
-        public double MarginMm = 2.0;
-        public bool InvertBinary = false;                // Binary: false = net trang/nen den
-        public Color? BackgroundOverride = null;
-
-        public Color ResolveBackground()
-        {
-            if (BackgroundOverride.HasValue) return BackgroundOverride.Value;
-            if (Mode == ColorMode.BinaryMask) return InvertBinary ? Color.White : Color.Black;
-            return GerberRenderer.RealisticBackground;
-        }
-
-        public Color ResolveForeground(GerberLayer layer)
-        {
-            if (Mode == ColorMode.BinaryMask) return InvertBinary ? Color.Black : Color.White;
-            return layer.DisplayColor;
-        }
-    }
-
     public sealed class RenderProgressEventArgs : EventArgs
     {
         public int Done, Total;
@@ -52,7 +27,8 @@ namespace GerberEngine
     public sealed class GerberEngineFacade
     {
         private readonly List<GerberLayer> _layers = new List<GerberLayer>();
-        private readonly GerberRenderer _renderer = new GerberRenderer();
+        private readonly GerberRasterExportRenderer _renderer = new GerberRasterExportRenderer();
+        private readonly GerberSvgRenderer _svgRenderer = new GerberSvgRenderer();
 
         public IReadOnlyList<GerberLayer> Layers { get { return _layers; } }
         public event EventHandler<RenderProgressEventArgs> RenderProgress;
@@ -66,7 +42,7 @@ namespace GerberEngine
         public GerberLayer LoadLayer(string filePath)
         {
             GerberLayer layer = new GerberParser().ParseFile(filePath);
-            layer.DisplayColor = GerberRenderer.DefaultColor(layer.Type, ColorMode.Realistic);
+            layer.DisplayColor = GerberRasterExportRenderer.DefaultColor(layer.Type, ColorMode.Realistic);
             _layers.Add(layer);
             return layer;
         }
@@ -88,17 +64,34 @@ namespace GerberEngine
         /// <returns></returns>
         public RectangleD GetCombinedBoundsMm()
         {
-            RectangleD b = RectangleD.Empty;
-            foreach (GerberLayer l in _layers)
-                if (l.Visible) b.Expand(l.GetBoundsMm());
-            return b;
+            return BuildScene().GetCombinedBoundsMm();
+        }
+
+        public GerberScene BuildScene()
+        {
+            var scene = new GerberScene();
+            for (int i = 0; i < _layers.Count; i++)
+            {
+                GerberLayer layer = _layers[i];
+                scene.Layers.Add(new GerberSceneLayer
+                {
+                    SourceLayer = layer,
+                    Id = "layer-" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    Name = layer.FileName,
+                    Type = layer.Type,
+                    Visible = layer.Visible,
+                    DisplayColor = layer.DisplayColor,
+                    Primitives = layer.Primitives
+                });
+            }
+            return scene;
         }
         /// <summary>
         /// Transformers are used for both rendering and reversing mouse coordinates (FR-008, FR-009).
         /// </summary>
         /// <param name="options"></param>
         /// <returns></returns>
-        public CoordinateTransformer CreateTransformer(RenderOptions options)
+        private CoordinateTransformer CreateTransformer(RasterExportOptions options)
         {
             return new CoordinateTransformer(GetCombinedBoundsMm(), options.Dpi, options.MarginMm);
         }
@@ -110,7 +103,7 @@ namespace GerberEngine
         /// <param name="layer"></param>
         /// <param name="options"></param>
         /// <returns></returns>
-        public Bitmap RenderLayer(GerberLayer layer, RenderOptions options)
+        private Bitmap RenderLayerForExport(GerberLayer layer, RasterExportOptions options)
         {
             CoordinateTransformer t = CreateTransformer(options);
             return _renderer.RenderLayerOpaque(layer, t, options.ResolveForeground(layer), options.ResolveBackground());
@@ -120,10 +113,16 @@ namespace GerberEngine
         /// </summary>
         /// <param name="options"></param>
         /// <returns></returns>
-        public Bitmap RenderCombined(RenderOptions options)
+        private Bitmap RenderCombinedForExport(RasterExportOptions options)
         {
             CoordinateTransformer t = CreateTransformer(options);
             return _renderer.RenderCombined(_layers, t, options.Mode, options.ResolveBackground(), OnProgress);
+        }
+
+
+        public string RenderCombinedSvg(SvgRenderOptions options)
+        {
+            return _svgRenderer.RenderCombinedSvg(BuildScene(), options);
         }
 
         private void OnProgress(int done, int total)
@@ -134,15 +133,15 @@ namespace GerberEngine
 
         // ---------- Export PNG (FR-012) ----------
 
-        public void ExportLayerPng(GerberLayer layer, RenderOptions options, string outputPath)
+        public void ExportLayerPng(GerberLayer layer, RasterExportOptions options, string outputPath)
         {
-            using (Bitmap bmp = RenderLayer(layer, options))
+            using (Bitmap bmp = RenderLayerForExport(layer, options))
                 SavePng(bmp, options.Dpi, outputPath);
         }
 
-        public void ExportCombinedPng(RenderOptions options, string outputPath)
+        public void ExportCombinedPng(RasterExportOptions options, string outputPath)
         {
-            using (Bitmap bmp = RenderCombined(options))
+            using (Bitmap bmp = RenderCombinedForExport(options))
                 SavePng(bmp, options.Dpi, outputPath);
         }
 
