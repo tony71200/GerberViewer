@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Drawing;
 
 namespace GerberEngine
 {
@@ -101,10 +100,8 @@ namespace GerberEngine
         }
     }
     // ----- Primitive: parse result, command with mm, origin by Gerber (Y direction) -----
-    public abstract class GerberPrimitive
+    public abstract class GerberPrimitive : GerberScenePrimitive
     {
-        public GerberPolarity Polarity = GerberPolarity.Dark;
-        public abstract RectangleD GetBoundsMm();
     }
     /// <summary>
     /// D03 - flash aperture at one point.
@@ -237,23 +234,12 @@ namespace GerberEngine
     }
     /// <summary>
     /// A Gerber layer parses (one file = one layer, FR-003).
+    /// Renderer-independent layer data lives in GerberSceneLayer; this legacy type
+    /// only adds UI display state used by the WinForms renderer facade.
     /// </summary>
-    public sealed class GerberLayer
+    public sealed class GerberLayer : GerberSceneLayer
     {
-        public string FilePath;
-        public string FileName;
-        public LayerType Type = LayerType.Unknown;
-        public GerberUnit SourceUnit = GerberUnit.Millimeter;
-        public List<GerberPrimitive> Primitives = new List<GerberPrimitive>();
-        public List<string> Warnings = new List<string>();   // NFR-003
         public bool Visible = true;
-        public Color DisplayColor = Color.Gold;              // mau tuy bien tung lop (FR-004)
-
-        public RectangleD GetBoundsMm()
-        {
-            RectangleD b = RectangleD.Empty;
-            foreach (GerberPrimitive p in Primitives) b.Expand(p.GetBoundsMm());
-            return b;
-        }
+        public System.Drawing.Color DisplayColor = System.Drawing.Color.Gold; // UI/render option state (FR-004)
     }
 }

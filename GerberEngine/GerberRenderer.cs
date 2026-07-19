@@ -143,7 +143,7 @@ namespace GerberEngine
 
         private void DrawLayer(Graphics g, GerberLayer layer, CoordinateTransformer t, Color fore)
         {
-            foreach (GerberPrimitive prim in layer.Primitives)
+            foreach (GerberScenePrimitive prim in layer.Primitives)
             {
                 bool erase = prim.Polarity == GerberPolarity.Clear;   // LPC (FR-013)
                 Color col = erase ? Color.Transparent : fore;

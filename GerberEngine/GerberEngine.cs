@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Threading;
 
 namespace GerberEngine
 {
@@ -82,6 +83,14 @@ namespace GerberEngine
         }
 
         public void Clear() { _layers.Clear(); }
+
+        /// <summary>
+        /// Parse files into a renderer-independent scene with no DPI or Bitmap dependencies.
+        /// </summary>
+        public GerberScene LoadScene(IEnumerable<string> filePaths, CancellationToken cancellationToken)
+        {
+            return new GerberSceneBuilder().Build(filePaths, cancellationToken);
+        }
         /// <summary>
         /// Bbox combines most visible layers (mm). Empty if nothing.
         /// </summary>
