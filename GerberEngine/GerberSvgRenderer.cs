@@ -21,7 +21,7 @@ namespace GerberEngine
             {
                 if (!layer.Visible) { layerIndex++; continue; }
                 string color = ToCss(options.Mode == ColorMode.BinaryMask ? Color.White : layer.DisplayColor);
-                sb.Append("<g id=\"layer-").Append(layerIndex).Append("-\").Append(SecurityElement.Escape(SafeId(layer.FileName))).Append("\" fill=\"").Append(color).Append("\" stroke=\"").Append(color).Append("\">");
+                sb.Append("<g id=\"layer-").Append(layerIndex).Append("-").Append(SecurityElement.Escape(SafeId(layer.FileName))).Append("\" fill=\"").Append(color).Append("\" stroke=\"").Append(color).Append("\">");
                 foreach (GerberPrimitive primitive in layer.Primitives) AppendPrimitive(sb, primitive);
                 sb.Append("</g>");
                 layerIndex++;
