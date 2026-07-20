@@ -25,7 +25,7 @@ namespace GerberViewer
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
         private CancellationTokenSource _loadFilesCts;
-        private CancellationTokenSource _previewCts;
+        private CancellationTokenSource _previewExportCts;
 
         private const int LargePrimitiveWarningThreshold = 50000;
         public MainForm()
@@ -41,9 +41,29 @@ namespace GerberViewer
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (_loadFilesCts != null) _loadFilesCts.Cancel();
-            if (_previewCts != null) _previewCts.Cancel();
+            CancelOutstandingWork();
             svgViewer.PrepareForFormClosing();
+        }
+
+        private void CancelOutstandingWork()
+        {
+            if (_loadFilesCts != null) _loadFilesCts.Cancel();
+            if (_previewExportCts != null) _previewExportCts.Cancel();
+        }
+
+        private void DisposeCancellationSources()
+        {
+            CancelOutstandingWork();
+            if (_loadFilesCts != null)
+            {
+                _loadFilesCts.Dispose();
+                _loadFilesCts = null;
+            }
+            if (_previewExportCts != null)
+            {
+                _previewExportCts.Dispose();
+                _previewExportCts = null;
+            }
         }
 
         // ---------- Nap file (FR-003) ----------
@@ -157,6 +177,7 @@ namespace GerberViewer
             if (IsDisposed || !IsHandleCreated) return;
             BeginInvoke((Action)(() =>
             {
+                if (IsDisposed) return;
                 if (!token.IsCancellationRequested)
                     lblStatus.Text = text;
             }));
@@ -300,6 +321,7 @@ namespace GerberViewer
         private async void InitializeSvgViewerAsync()
         {
             await svgViewer.EnsureInitializedAsync();
+            if (IsDisposed) return;
             if (svgViewer.IsAvailable)
             {
                 svgViewer.Visible = true;
@@ -325,7 +347,7 @@ namespace GerberViewer
             return scene;
         }
 
-        private void RenderPreviewAsync(bool fit)
+        private async void RenderPreviewAsync(bool fit)
         {
             if (_engine.GetCombinedBoundsMm().IsEmpty)
             {
@@ -335,9 +357,9 @@ namespace GerberViewer
                 return;
             }
 
-            if (_previewCts != null) _previewCts.Cancel();
+            if (_previewExportCts != null) _previewExportCts.Cancel();
             CancellationTokenSource currentRender = new CancellationTokenSource();
-            _previewCts = currentRender;
+            _previewExportCts = currentRender;
             CancellationToken token = currentRender.Token;
 
             _rendering = true;
@@ -347,63 +369,73 @@ namespace GerberViewer
             SvgRenderOptions svgOptions = BuildSvgOptions();
             PreviewSettings previewSettings = BuildPreviewSettings();
 
-            Task.Run<object>(() =>
+            try
             {
-                token.ThrowIfCancellationRequested();
-                if (useSvg) return new GerberSvgRenderer().Render(scene, svgOptions, token);
-                return _engine.RenderCombinedViewportBitmap(previewSettings);
-            }, token).ContinueWith(task =>
-            {
-                if (IsDisposed || !IsHandleCreated) return;
-                BeginInvoke((Action)(async () =>
+                object renderResult = await Task.Run<object>(() =>
                 {
-                    if (!ReferenceEquals(_previewCts, currentRender)) return;
-                    _rendering = false;
-                    _previewCts = null;
-                    currentRender.Dispose();
-                    if (task.IsCanceled) return;
-                    if (task.IsFaulted)
+                    token.ThrowIfCancellationRequested();
+                    if (useSvg) return new GerberSvgRenderer().Render(scene, svgOptions, token);
+                    return _engine.RenderCombinedViewportBitmap(previewSettings);
+                }, token);
+
+                if (IsDisposed || !ReferenceEquals(_previewExportCts, currentRender)) return;
+
+                DisposePreviewRenderResult();
+                RectangleD b = scene.GetBoundsMm();
+                lblBoardSize.Text = string.Format("Board: {0:0.##} x {1:0.##} mm", b.Width, b.Height);
+
+                if (useSvg)
+                {
+                    try
                     {
-                        string msg = task.Exception.GetBaseException().Message;
-                        lblStatus.Text = "Loi render: " + msg;
-                        MessageBox.Show(this, msg, "Render", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        token.ThrowIfCancellationRequested();
+                        await svgViewer.LoadSvg((string)renderResult);
+                        if (IsDisposed || token.IsCancellationRequested || !ReferenceEquals(_previewExportCts, currentRender)) return;
+                        svgViewer.Visible = true;
+                        canvas.Visible = false;
+                        canvas.SetImage(null, false);
+                        if (fit) svgViewer.FitToView();
+                        lblStatus.Text = "Ready (SVG/WebView2 preview, Export DPI independent)";
+                        UpdateZoomLabel();
                         return;
                     }
-
-                    DisposePreviewRenderResult();
-                    RectangleD b = scene.GetBoundsMm();
-                    lblBoardSize.Text = string.Format("Board: {0:0.##} x {1:0.##} mm", b.Width, b.Height);
-
-                    if (useSvg)
+                    catch (OperationCanceledException) { throw; }
+                    catch
                     {
-                        try
-                        {
-                            await svgViewer.LoadSvg((string)task.Result);
-                            svgViewer.Visible = true;
-                            canvas.Visible = false;
-                            canvas.SetImage(null, false);
-                            if (fit) svgViewer.FitToView();
-                            lblStatus.Text = "Ready (SVG/WebView2 preview, Export DPI independent)";
-                            UpdateZoomLabel();
-                            return;
-                        }
-                        catch
-                        {
-                            svgViewer.Visible = false;
-                            canvas.Visible = true;
-                            RenderPreviewAsync(fit);
-                            return;
-                        }
+                        if (IsDisposed || token.IsCancellationRequested || !ReferenceEquals(_previewExportCts, currentRender)) return;
+                        svgViewer.Visible = false;
+                        canvas.Visible = true;
+                        RenderPreviewAsync(fit);
+                        return;
                     }
+                }
 
-                    _previewRenderResult = (PreviewBitmapRenderResult)task.Result;
-                    canvas.Visible = true;
-                    svgViewer.Visible = false;
-                    canvas.SetImage(_previewRenderResult.Bitmap, fit);
-                    lblStatus.Text = "Ready (bitmap fallback preview, Export DPI independent)";
-                    UpdateZoomLabel();
-                }));
-            });
+                _previewRenderResult = (PreviewBitmapRenderResult)renderResult;
+                canvas.Visible = true;
+                svgViewer.Visible = false;
+                canvas.SetImage(_previewRenderResult.Bitmap, fit);
+                lblStatus.Text = "Ready (bitmap fallback preview, Export DPI independent)";
+                UpdateZoomLabel();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                if (IsDisposed || token.IsCancellationRequested || !ReferenceEquals(_previewExportCts, currentRender)) return;
+                string msg = ex.Message;
+                lblStatus.Text = "Loi render: " + msg;
+                MessageBox.Show(this, msg, "Render", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                if (ReferenceEquals(_previewExportCts, currentRender))
+                {
+                    _rendering = false;
+                    _previewExportCts = null;
+                    currentRender.Dispose();
+                }
+            }
         }
 
         private void DisposePreviewRenderResult()
@@ -447,15 +479,17 @@ namespace GerberViewer
             using (var dlg = new FolderBrowserDialog { Description = "Choose folder for per-layer PNG export" })
             {
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
-                RunExport(() =>
+                RunExport(token =>
                 {
                     RasterExportOptions opts = BuildExportOptions();
                     foreach (GerberLayer layer in targets)
                     {
+                        token.ThrowIfCancellationRequested();
                         string name = Path.GetFileNameWithoutExtension(layer.FileName)
                                     + "_" + layer.Type + "_" + opts.Dpi + "dpi.png";
                         _engine.ExportLayerPng(layer, opts, Path.Combine(dlg.SelectedPath, name));
                     }
+                    token.ThrowIfCancellationRequested();
                     return targets.Count + " file PNG -> " + dlg.SelectedPath;
                 });
             }
@@ -466,33 +500,54 @@ namespace GerberViewer
             using (var dlg = new SaveFileDialog { Filter = "PNG image|*.png", FileName = "board_combined.png" })
             {
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
-                RunExport(() =>
+                RunExport(token =>
                 {
+                    token.ThrowIfCancellationRequested();
                     _engine.ExportCombinedPng(BuildExportOptions(), dlg.FileName);
+                    token.ThrowIfCancellationRequested();
                     return "Da xuat " + dlg.FileName;
                 });
             }
         }
 
         /// <summary>Chay export o worker thread, khoa nut trong luc chay (FR-017).</summary>
-        private void RunExport(Func<string> work)
+        private async void RunExport(Func<CancellationToken, string> work)
         {
+            if (_previewExportCts != null) _previewExportCts.Cancel();
+            CancellationTokenSource currentExport = new CancellationTokenSource();
+            _previewExportCts = currentExport;
+            CancellationToken token = currentExport.Token;
+
             tsbExportSelected.Enabled = tsbExportCombined.Enabled = false;
             lblStatus.Text = "Exporting PNG...";
-            Task.Run(work).ContinueWith(task =>
+            try
             {
-                BeginInvoke((Action)(() =>
-                {
+                string result = await Task.Run(() => work(token), token);
+                if (IsDisposed || token.IsCancellationRequested || !ReferenceEquals(_previewExportCts, currentExport)) return;
+                lblStatus.Text = result;
+            }
+            catch (OperationCanceledException)
+            {
+                if (!IsDisposed && ReferenceEquals(_previewExportCts, currentExport))
+                    lblStatus.Text = "Export canceled";
+            }
+            catch (Exception ex)
+            {
+                if (IsDisposed || token.IsCancellationRequested || !ReferenceEquals(_previewExportCts, currentExport)) return;
+                string msg = ex.Message;
+                lblStatus.Text = "Loi xuat: " + msg;
+                MessageBox.Show(this, msg, "Export", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                if (!IsDisposed)
                     tsbExportSelected.Enabled = tsbExportCombined.Enabled = true;
-                    if (task.IsFaulted)
-                    {
-                        string msg = task.Exception.GetBaseException().Message;
-                        lblStatus.Text = "Loi xuat: " + msg;
-                        MessageBox.Show(this, msg, "Export", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
-                    else lblStatus.Text = task.Result;
-                }));
-            });
+                if (ReferenceEquals(_previewExportCts, currentExport))
+                {
+                    _previewExportCts = null;
+                    currentExport.Dispose();
+                }
+            }
         }
     }
 }
