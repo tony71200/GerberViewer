@@ -1,11 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.13.35919.96 d17.13
+VisualStudioVersion = 17.13.35919.96
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GerberViewer", "GerberViewer\GerberViewer.csproj", "{79E13AC6-847A-422F-8BE0-7E0E3EB40E04}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GerberEngine", "GerberEngine\GerberEngine.csproj", "{E8CD28FA-DA0B-4F1C-B301-267BE64C0513}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EWindowControl", "EWindowControl\EWindowControl.csproj", "{327B1A7B-56A9-4101-93DC-D2D5D9B82AB0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,6 +33,14 @@ Global
 		{E8CD28FA-DA0B-4F1C-B301-267BE64C0513}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E8CD28FA-DA0B-4F1C-B301-267BE64C0513}.Release|x64.ActiveCfg = Release|x64
 		{E8CD28FA-DA0B-4F1C-B301-267BE64C0513}.Release|x64.Build.0 = Release|x64
+		{327B1A7B-56A9-4101-93DC-D2D5D9B82AB0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{327B1A7B-56A9-4101-93DC-D2D5D9B82AB0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{327B1A7B-56A9-4101-93DC-D2D5D9B82AB0}.Debug|x64.ActiveCfg = Debug|x64
+		{327B1A7B-56A9-4101-93DC-D2D5D9B82AB0}.Debug|x64.Build.0 = Debug|x64
+		{327B1A7B-56A9-4101-93DC-D2D5D9B82AB0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{327B1A7B-56A9-4101-93DC-D2D5D9B82AB0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{327B1A7B-56A9-4101-93DC-D2D5D9B82AB0}.Release|x64.ActiveCfg = Release|x64
+		{327B1A7B-56A9-4101-93DC-D2D5D9B82AB0}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
