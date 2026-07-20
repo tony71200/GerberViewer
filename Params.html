@@ -54,6 +54,22 @@
     <li><code>Changed</code>/<code>NotifyChanged</code>: typed event thông báo state thay đổi.</li>
   </ul>
 
+
+  <h2>GerberStitching.Core/Alignment</h2>
+  <ul>
+    <li><code>ISampleAligner</code>: interface align sample tile, trả <code>SampleAlignmentResult</code>; direction transform chuẩn là <code>Captured → Sample</code>.</li>
+    <li><code>SampleAlignmentContext</code>: input alignment gồm <code>SampleTileId</code>, <code>SampleImage</code>, <code>CapturedImage</code>, <code>ExpectedCapturedToSampleTransform</code>, <code>InitialCapturedToSampleTransform</code> và <code>Options</code>; ảnh gốc không bị overwrite.</li>
+    <li><code>SampleAlignmentResult</code>: result gồm <code>Success</code>, <code>CapturedToSampleTransform</code> 3x3 <code>CV_64F</code>, <code>NccScore</code>, <code>EccCorrelation</code>, rotation/translation/scale, <code>OverlapRatio</code>, <code>Method</code>, <code>PreprocessingVariant</code>, <code>RejectionReason</code>, <code>Warning</code> và optional <code>DiagnosticImages</code>.</li>
+    <li><code>SampleAlignmentOptions</code>: thresholds/config gồm <code>NccMinScore</code>, <code>EccMinCorrelation</code>, <code>MinOverlapRatio</code>, <code>MaxTranslationPixels</code>, <code>MaxAbsRotationDeg</code>, <code>MinScale</code>, <code>MaxScale</code>, <code>AllowNccOnlyAcceptance</code>, <code>AllowEccFromExpectedWhenNccFails</code>, <code>PyramidLevels</code>, <code>EccIterations</code>, <code>EccEpsilon</code> và <code>Preprocessing</code>.</li>
+    <li><code>PreprocessingOptions</code>: modality-aware pipeline gồm grayscale conversion, <code>ContrastNormalization</code>, polarity sample/captured (<code>PolarityMode</code>), threshold fixed/Otsu/adaptive (<code>ThresholdMode</code>), Sobel/Canny/HALCON-equivalent edges (<code>EdgePreparationMode</code>), Gerber content mask, normalized size và diagnostic image flag.</li>
+    <li><code>ModalityAwarePreprocessor.Preprocess</code>: tạo bản processed mới cho sample/captured, không mutate bitmap input; xuất <code>PreprocessedAlignmentImages</code> disposable.</li>
+    <li><code>HalconNccSampleAligner</code>: NCC coarse aligner với hook/cache per <code>SampleTileId</code> tương ứng <code>create_ncc_model</code>/<code>find_ncc_model</code>, convert row/column/angle sang homography <code>Captured → Sample</code>, dispose cache deterministic và reject khi score nhỏ hơn <code>NccMinScore</code>.</li>
+    <li><code>PyramidEccSampleAligner</code>: ECC refinement path chuẩn bị ảnh single-channel float, dùng expected/NCC init, validate correlation/translation/rotation/scale/overlap/finiteness và giữ transform 3x3 <code>CV_64F</code>.</li>
+    <li><code>NccThenPyramidEccSampleAligner</code>: hybrid mặc định chạy NCC rồi ECC, accept khi cả hai pass, accept NCC-only khi geometry/threshold pass với warning <code>NccOnlyAccepted</code>, và optionally chạy ECC từ expected-grid init nếu NCC fail.</li>
+    <li><code>NeighborMatchAcceptance.IsAccepted</code>: helper migration cho neighbor matcher, success chỉ khi <code>pairResult?.Eval?.IsMatch == true</code>; không accept chỉ vì <code>Eval != null</code>.</li>
+    <li><code>SampleAlignmentMethod</code>, <code>PolarityMode</code>, <code>ThresholdMode</code>, <code>EdgePreparationMode</code>, <code>ContrastNormalizationMode</code>: enums cho method/preprocessing variant.</li>
+  </ul>
+
   <h2>GerberStitching.Core/Arrangement</h2>
   <ul>
     <li><code>NaturalSortService</code>: service natural-sort filename, expose <code>SupportedExtensions</code> tối thiểu <code>.bmp</code>, <code>.png</code>, <code>.jpg</code>, <code>.jpeg</code>, <code>.tif</code>, <code>.tiff</code>, <code>GetNaturalKey</code>, <code>SortFiles</code>.</li>
