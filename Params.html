@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>GerberViewer Params</title>
+</head>
+<body>
+  <h1>GerberViewer Params</h1>
+  <h2>MainForm</h2>
+  <ul>
+    <li><code>mainTabControl</code>: TabControl chính chứa ba tab theo thứ tự Read Gerber, Create Gerber Sample, Align and Stitching.</li>
+    <li><code>_workflowContext</code>: WorkflowContext dùng chung để trao đổi state giữa các tab mà không truy cập private controls.</li>
+  </ul>
+  <h2>Views/ReadGerberControl</h2>
+  <ul>
+    <li><code>toolStrip</code>, <code>lvLayers</code>, <code>canvas</code>, <code>statusStrip</code>: UI đọc Gerber đã tách khỏi MainForm.</li>
+    <li><code>tsbOpen_Click</code>, <code>ReadGerberControl_DragEnter</code>, <code>ReadGerberControl_DragDrop</code>: mở file và drag/drop Gerber.</li>
+    <li><code>tsbRender_Click</code>, <code>tsbFit_Click</code>, <code>RenderPreviewAsync</code>: refresh preview, fit view, zoom/pan/fit qua GerberCanvas.</li>
+    <li><code>tsbExportSelected_Click</code>, <code>tsbExportCombined_Click</code>, <code>RunExport</code>: export layer và combined PNG.</li>
+    <li><code>WorkflowContext</code>: optional shared workflow state reference.</li>
+  </ul>
+  <h2>Views/CreateGerberSampleControl</h2>
+  <ul>
+    <li><code>btnOpenSample</code>: chọn external raster bằng Open Sample.</li>
+    <li><code>btnOpenSample_Click</code>: cập nhật <code>WorkflowContext.SampleRasterPath</code> và <code>WorkflowContext.SampleConfig.SourceRasterPath</code>; version 1 không consume render hiện tại từ tab Read Gerber.</li>
+  </ul>
+  <h2>Views/AlignStitchingControl</h2>
+  <ul>
+    <li><code>WorkflowContext</code>: subscribe event Changed để đọc typed shared state.</li>
+    <li><code>RefreshContextLabels</code>: hiển thị sample raster và last stitched output path từ WorkflowContext.</li>
+  </ul>
+  <h2>Workflow/Models/WorkflowContext</h2>
+  <ul>
+    <li><code>SampleRasterPath</code>: đường dẫn external raster sample.</li>
+    <li><code>SampleConfig</code>: cấu hình tạo Gerber sample.</li>
+    <li><code>ManifestPath</code>: đường dẫn manifest workflow.</li>
+    <li><code>OutputDirectory</code>: thư mục output chung.</li>
+    <li><code>AlignStitchConfig</code>: cấu hình align/stitch.</li>
+    <li><code>LastStitchedOutputPath</code>: output stitch gần nhất.</li>
+    <li><code>Changed</code>/<code>NotifyChanged</code>: typed event thông báo state thay đổi.</li>
+  </ul>
+</body>
+</html>

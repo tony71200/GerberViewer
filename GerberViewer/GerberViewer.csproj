@@ -75,6 +75,25 @@
     <Compile Include="MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Views\ReadGerberControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\ReadGerberControl.Designer.cs">
+      <DependentUpon>ReadGerberControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\CreateGerberSampleControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\CreateGerberSampleControl.Designer.cs">
+      <DependentUpon>CreateGerberSampleControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\AlignStitchingControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\AlignStitchingControl.Designer.cs">
+      <DependentUpon>AlignStitchingControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Workflow\Models\WorkflowContext.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
@@ -97,7 +116,11 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\Params.html" />
     <None Include="App.config" />
+    <None Include="Workflow\Progress\.gitkeep" />
+    <None Include="Workflow\Validation\.gitkeep" />
+    <None Include="Workflow\Services\.gitkeep" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\EWindowControl\EWindowControl.csproj">
