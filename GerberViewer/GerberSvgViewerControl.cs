@@ -100,7 +100,7 @@ namespace GerberViewer
                 _message.Visible = false;
                 _webView.Visible = true;
             }
-            catch (CoreWebView2RuntimeNotFoundException ex)
+            catch (WebView2RuntimeNotFoundException ex)
             {
                 ShowInitializationFailure("Microsoft Edge WebView2 Runtime is not installed.", ex);
             }
