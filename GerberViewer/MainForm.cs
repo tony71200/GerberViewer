@@ -41,7 +41,7 @@ namespace GerberViewer
             using (var dlg = new OpenFileDialog())
             {
                 dlg.Multiselect = true;
-                dlg.Filter = "Gerber files|*.gbr;*.ger;*.gtl;*.gbl;*.gts;*.gbs;*.gto;*.gbo;*.gko;*.gm1;*.gml;*.art;*.pho|All files|*.*";
+                dlg.Filter = "Gerber files|*.grb;*.gbr;*.ger;*.gtl;*.gbl;*.gts;*.gbs;*.gto;*.gbo;*.gko;*.gm1;*.gml;*.art;*.pho|All files|*.*";
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                     LoadFiles(dlg.FileNames);
             }
@@ -205,7 +205,7 @@ namespace GerberViewer
 
             _rendering = true;
             lblStatus.Text = "Generating preview...";
-            RenderOptions opts = BuildOptions(false);
+            RenderOptions opts = BuildOptions(true);
 
             // Render o worker thread; Bitmap ban giao quyen so huu cho canvas sau khi xong (Spec 5.1.4)
             Task.Run(() =>
