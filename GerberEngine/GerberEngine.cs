@@ -1,4 +1,4 @@
-﻿// GerberEngine/GerberEngine.cs
+// GerberEngine/GerberEngine.cs
 // GerberEngine's public FACADE API (BR-003, NFR-004).
 // This is a stable contract for reuse: WinForms app, console tool, service...
 // Depends only on System.Drawing - NOT dependent on System.Windows.Forms.
@@ -6,14 +6,16 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.IO;
+using System.Text;
 using System.Threading;
 
 namespace GerberEngine
 {
     /// <summary>
-    /// Render/export options (FR-010, FR-011).
+    /// Raster PNG export options (FR-010, FR-011).
     /// </summary>
-    public sealed class RenderOptions
+    public sealed class RasterExportOptions
     {
         public int Dpi = 600;                            // 150/300/600/1200
         public ColorMode Mode = ColorMode.Realistic;
@@ -35,7 +37,7 @@ namespace GerberEngine
         }
     }
 
-    public sealed class ViewportBitmapOptions
+    public sealed class PreviewSettings
     {
         public int ViewportWidthPx = 1000;
         public int ViewportHeightPx = 1000;
@@ -78,10 +80,18 @@ namespace GerberEngine
     public sealed class RenderProgressEventArgs : EventArgs
     {
         public int Done, Total;
+        public string Stage;
+
         public RenderProgressEventArgs(int done, int total)
+            : this(done, total, null)
+        {
+        }
+
+        public RenderProgressEventArgs(int done, int total, string stage)
         {
             this.Done = done;
             this.Total = total;
+            this.Stage = stage;
         }
     }
     /// <summary>
@@ -129,7 +139,31 @@ namespace GerberEngine
         /// </summary>
         public GerberScene LoadScene(IEnumerable<string> filePaths, CancellationToken cancellationToken)
         {
-            return new GerberSceneBuilder().Build(filePaths, cancellationToken);
+            GerberScene scene = new GerberSceneBuilder().Build(filePaths, cancellationToken, OnProgressStage);
+            OnProgressStage("Completed");
+            return scene;
+        }
+
+        public string CreateSvg(GerberScene scene, SvgRenderOptions options, CancellationToken cancellationToken)
+        {
+            string svg = CreateSvgCore(scene, options, cancellationToken);
+            OnProgressStage("Completed");
+            return svg;
+        }
+
+        public void SaveSvg(GerberScene scene, SvgRenderOptions options, string outputPath, CancellationToken cancellationToken)
+        {
+            if (outputPath == null) throw new ArgumentNullException("outputPath");
+            string svg = CreateSvgCore(scene, options, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            OnProgressStage("Writing SVG");
+            File.WriteAllText(outputPath, svg, Encoding.UTF8);
+            OnProgressStage("Completed");
+        }
+
+        private string CreateSvgCore(GerberScene scene, SvgRenderOptions options, CancellationToken cancellationToken)
+        {
+            return new GerberSvgRenderer().Render(scene, options, cancellationToken, OnProgressStage);
         }
         /// <summary>
         /// Bbox combines most visible layers (mm). Empty if nothing.
@@ -147,18 +181,18 @@ namespace GerberEngine
         /// </summary>
         /// <param name="options"></param>
         /// <returns></returns>
-        public CoordinateTransformer CreateExportTransformer(RenderOptions options)
+        public CoordinateTransformer CreateExportTransformer(RasterExportOptions options)
         {
             return new CoordinateTransformer(GetCombinedBoundsMm(), options.Dpi, options.MarginMm);
         }
 
         [Obsolete("Use CreateExportTransformer because this transformer is tied to raster export DPI.")]
-        public CoordinateTransformer CreateTransformer(RenderOptions options)
+        public CoordinateTransformer CreateTransformer(RasterExportOptions options)
         {
             return CreateExportTransformer(options);
         }
 
-        public PreviewBitmapRenderResult RenderCombinedViewportBitmap(ViewportBitmapOptions options)
+        public PreviewBitmapRenderResult RenderCombinedViewportBitmap(PreviewSettings options)
         {
             if (options == null) throw new ArgumentNullException("options");
             RectangleD bounds = GetCombinedBoundsMm();
@@ -173,13 +207,13 @@ namespace GerberEngine
         }
 
         [Obsolete("Use RenderLayerForExport to make DPI-based raster export usage explicit.")]
-        public Bitmap RenderLayer(GerberLayer layer, RenderOptions options)
+        public Bitmap RenderLayer(GerberLayer layer, RasterExportOptions options)
         {
             return RenderLayerForExport(layer, options);
         }
 
         [Obsolete("Use RenderCombinedForExport to make DPI-based raster export usage explicit.")]
-        public Bitmap RenderCombined(RenderOptions options)
+        public Bitmap RenderCombined(RasterExportOptions options)
         {
             return RenderCombinedForExport(options);
         }
@@ -191,7 +225,7 @@ namespace GerberEngine
         /// <param name="layer"></param>
         /// <param name="options"></param>
         /// <returns></returns>
-        public Bitmap RenderLayerForExport(GerberLayer layer, RenderOptions options)
+        public Bitmap RenderLayerForExport(GerberLayer layer, RasterExportOptions options)
         {
             CoordinateTransformer t = CreateExportTransformer(options);
             return _rasterExportRenderer.RenderLayerOpaqueForExport(layer, t, options.ResolveForeground(layer), options.ResolveBackground());
@@ -201,7 +235,7 @@ namespace GerberEngine
         /// </summary>
         /// <param name="options"></param>
         /// <returns></returns>
-        public Bitmap RenderCombinedForExport(RenderOptions options)
+        public Bitmap RenderCombinedForExport(RasterExportOptions options)
         {
             CoordinateTransformer t = CreateExportTransformer(options);
             return _rasterExportRenderer.RenderCombinedForExport(_layers, t, options.Mode, options.ResolveBackground(), OnProgress);
@@ -213,15 +247,21 @@ namespace GerberEngine
             if (h != null) h(this, new RenderProgressEventArgs(done, total));
         }
 
+        private void OnProgressStage(string stage)
+        {
+            EventHandler<RenderProgressEventArgs> h = RenderProgress;
+            if (h != null) h(this, new RenderProgressEventArgs(0, 0, stage));
+        }
+
         // ---------- Export PNG (FR-012) ----------
 
-        public void ExportLayerPng(GerberLayer layer, RenderOptions options, string outputPath)
+        public void ExportLayerPng(GerberLayer layer, RasterExportOptions options, string outputPath)
         {
             using (Bitmap bmp = RenderLayerForExport(layer, options))
                 SavePng(bmp, options.Dpi, outputPath);
         }
 
-        public void ExportCombinedPng(RenderOptions options, string outputPath)
+        public void ExportCombinedPng(RasterExportOptions options, string outputPath)
         {
             using (Bitmap bmp = RenderCombinedForExport(options))
                 SavePng(bmp, options.Dpi, outputPath);

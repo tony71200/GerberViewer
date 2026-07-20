@@ -13,9 +13,13 @@
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                DisposeCancellationSources();
+                if (components != null)
+                {
+                    components.Dispose();
+                }
             }
             base.Dispose(disposing);
         }
@@ -50,6 +54,7 @@
             this.miMoveDown = new System.Windows.Forms.ToolStripMenuItem();
             this.miRemove = new System.Windows.Forms.ToolStripMenuItem();
             this.canvas = new GerberViewer.GerberCanvas();
+            this.svgViewer = new GerberViewer.GerberSvgViewerControl();
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.lblStatus = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblBoardSize = new System.Windows.Forms.ToolStripStatusLabel();
@@ -116,6 +121,7 @@
             this.splitContainer.BackColor = System.Drawing.Color.FromArgb(20, 22, 22);
             this.splitContainer.Panel1.Controls.Add(this.lvLayers);
             this.splitContainer.Panel2.Controls.Add(this.canvas);
+            this.splitContainer.Panel2.Controls.Add(this.svgViewer);
             //
             // lvLayers
             //
@@ -158,8 +164,11 @@
             this.miRemove.Text = "Remove layer";
             this.miRemove.Click += new System.EventHandler(this.miRemove_Click);
             //
-            // canvas (custom control - logic o GerberCanvas.cs, Spec 5.2.2)
+            // svgViewer / canvas fallback
             //
+            this.svgViewer.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.svgViewer.Name = "svgViewer";
+            this.svgViewer.Visible = false;
             this.canvas.Dock = System.Windows.Forms.DockStyle.Fill;
             this.canvas.Name = "canvas";
             //
@@ -191,6 +200,7 @@
             this.Text = "Gerber Viewer";
             this.DragEnter += new System.Windows.Forms.DragEventHandler(this.MainForm_DragEnter);
             this.DragDrop += new System.Windows.Forms.DragEventHandler(this.MainForm_DragDrop);
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
             this.toolStrip.ResumeLayout(false);
             this.toolStrip.PerformLayout();
             this.splitContainer.Panel1.ResumeLayout(false);
@@ -228,6 +238,7 @@
         private System.Windows.Forms.ToolStripMenuItem miMoveDown;
         private System.Windows.Forms.ToolStripMenuItem miRemove;
         private GerberCanvas canvas;
+        private GerberSvgViewerControl svgViewer;
 
         private System.Windows.Forms.StatusStrip statusStrip;
         private System.Windows.Forms.ToolStripStatusLabel lblStatus;
