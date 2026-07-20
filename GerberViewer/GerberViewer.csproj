@@ -87,6 +87,9 @@
     <Compile Include="Views\CreateGerberSampleControl.Designer.cs">
       <DependentUpon>CreateGerberSampleControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Stitching\PathCanvasControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Views\AlignStitchingControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
