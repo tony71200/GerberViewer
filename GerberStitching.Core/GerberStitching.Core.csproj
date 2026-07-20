@@ -65,6 +65,8 @@
     <Compile Include="Alignment\ModalityAwarePreprocessor.cs" />
     <Compile Include="Alignment\SampleAligners.cs" />
     <Compile Include="Alignment\NeighborMatchAcceptance.cs" />
+    <Compile Include="Alignment\AlignStitchWorkflowService.cs" />
+    <Compile Include="Stitching\GlobalTransformStitcher.cs" />
     <Compile Include="Arrangement\NaturalSortService.cs" />
     <Compile Include="Arrangement\CapturedImageLoader.cs" />
     <Compile Include="Configuration\GerberSampleConfig.cs" />
