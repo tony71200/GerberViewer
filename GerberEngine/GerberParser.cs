@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GerberEngine
@@ -27,7 +27,11 @@ namespace GerberEngine
         private RegionPrimitive _region;
         private RegionContour _contour;
         private GerberLayer _layer;
+        private const int ProgressPrimitiveBatchSize = 10000;
         private int _lineNo;
+        private GerberParserDiagnostics _diagnostics;
+        private CancellationToken _cancellationToken;
+        private Action<string> _reportProgress;
         /// <summary>
         /// Parse a Gerber file into a GerberLayer. Do not throw an exception for the singular syntax error (NFR-003).
         /// </summary>
@@ -35,27 +39,107 @@ namespace GerberEngine
         /// <returns></returns>
         public GerberLayer ParseFile(string path)
         {
+            return ParseFile(path, CancellationToken.None, (Action<string>)null);
+        }
+
+        public GerberLayer ParseFile(string path, Action<string> reportProgress)
+        {
+            return ParseFile(path, CancellationToken.None, reportProgress);
+        }
+
+        public GerberLayer ParseFile(string path, IProgress<string> progress)
+        {
+            return ParseFile(path, CancellationToken.None, progress);
+        }
+
+        public GerberLayer ParseFile(string path, CancellationToken cancellationToken)
+        {
+            return ParseFile(path, cancellationToken, (Action<string>)null);
+        }
+
+        public GerberLayer ParseFile(string path, CancellationToken cancellationToken, Action<string> reportProgress)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Report(reportProgress, "Reading file");
             string content = File.ReadAllText(path);
-            return ParseContent(path, content);
+            return ParseContent(path, content, cancellationToken, reportProgress);
+        }
+
+        public GerberLayer ParseFile(string path, CancellationToken cancellationToken, IProgress<string> progress)
+        {
+            return ParseFile(path, cancellationToken, progress == null ? (Action<string>)null : progress.Report);
         }
 
         public GerberLayer ParseContent(string path, string content)
         {
-            _layer = new GerberLayer { FilePath = path, FileName = Path.GetFileName(path) };
+            return ParseContent(path, content, CancellationToken.None, (Action<string>)null);
+        }
+
+        public GerberLayer ParseContent(string path, string content, Action<string> reportProgress)
+        {
+            return ParseContent(path, content, CancellationToken.None, reportProgress);
+        }
+
+        public GerberLayer ParseContent(string path, string content, IProgress<string> progress)
+        {
+            return ParseContent(path, content, CancellationToken.None, progress);
+        }
+
+        public GerberLayer ParseContent(string path, string content, CancellationToken cancellationToken)
+        {
+            return ParseContent(path, content, cancellationToken, (Action<string>)null);
+        }
+
+        public GerberLayer ParseContent(string path, string content, CancellationToken cancellationToken, IProgress<string> progress)
+        {
+            return ParseContent(path, content, cancellationToken, progress == null ? (Action<string>)null : progress.Report);
+        }
+
+        public GerberLayer ParseContent(string path, string content, CancellationToken cancellationToken, Action<string> reportProgress)
+        {
+            _cancellationToken = cancellationToken;
+            _reportProgress = reportProgress;
+            ResetState();
+            _layer = new GerberLayer { FilePath = path, FileName = Path.GetFileName(path), Diagnostics = _diagnostics };
+            Report("Parsing commands");
             Parse(content);
+            cancellationToken.ThrowIfCancellationRequested();
+            Report("Detecting layer type");
             if (_layer.Type == LayerType.Unknown)
                 _layer.Type = LayerTypeDetector.DetectFromFileName(_layer.FileName);
+            Report("Parsing complete: " + _diagnostics.ProcessedCommands.ToString(CultureInfo.InvariantCulture)
+                + " processed, " + _diagnostics.MalformedCommands.ToString(CultureInfo.InvariantCulture)
+                + " malformed, " + _diagnostics.SkippedCommands.ToString(CultureInfo.InvariantCulture) + " skipped");
             return _layer;
+        }
+
+        private void ResetState()
+        {
+            _unit = GerberUnit.Millimeter;
+            _intDigits = 3;
+            _decDigits = 6;
+            _polarity = GerberPolarity.Dark;
+            _interpolation = 1;
+            _inRegion = false;
+            _current = new PointD();
+            _currentAperture = null;
+            _apertures.Clear();
+            _macros.Clear();
+            _region = null;
+            _contour = null;
+            _lineNo = 1;
+            _diagnostics = new GerberParserDiagnostics();
         }
 
         private void Parse(string content)
         {
             int i = 0, n = content.Length;
-            var word = new StringBuilder();
             _lineNo = 1;
 
+            int commandCount = 0;
             while (i < n)
             {
+                _cancellationToken.ThrowIfCancellationRequested();
                 char c = content[i];
                 if (c == '\n') { _lineNo++; i++; continue; }
                 if (c == '\r' || c == ' ' || c == '\t') { i++; continue; }
@@ -64,20 +148,40 @@ namespace GerberEngine
                 {
                     // Extended command: doc den '%' dong
                     int end = content.IndexOf('%', i + 1);
-                    if (end < 0) { Warn("Thieu '%' dong extended command"); break; }
+                    if (end < 0)
+                    {
+                        RecordMalformedCommand();
+                        RecordSkippedCommand();
+                        Warn("Thieu '%' dong extended command");
+                        break;
+                    }
                     string block = content.Substring(i + 1, end - i - 1);
                     CountLines(block);
-                    SafeExec(() => HandleExtended(block));
+                    SafeExec(() => HandleExtended(block), block);
+                    commandCount++;
+                    if (commandCount % ProgressPrimitiveBatchSize == 0) Report("Parsed " + commandCount.ToString(CultureInfo.InvariantCulture) + " commands");
                     i = end + 1;
                     continue;
                 }
 
                 // Word command: doc den '*'
                 int star = content.IndexOf('*', i);
-                if (star < 0) break;
+                if (star < 0)
+                {
+                    RecordMalformedCommand();
+                    RecordSkippedCommand();
+                    Warn("Thieu '*' dong word command");
+                    break;
+                }
                 string wordCmd = content.Substring(i, star - i).Trim();
                 CountLines(content.Substring(i, star - i));
-                if (wordCmd.Length > 0) SafeExec(() => HandleWord(wordCmd));
+                if (wordCmd.Length > 0)
+                {
+                    RecordProcessedCommand();
+                    SafeExec(() => HandleWord(wordCmd), wordCmd);
+                    commandCount++;
+                    if (commandCount % ProgressPrimitiveBatchSize == 0) Report("Parsed " + commandCount.ToString(CultureInfo.InvariantCulture) + " commands");
+                }
                 i = star + 1;
             }
         }
@@ -87,15 +191,37 @@ namespace GerberEngine
             foreach (char c in s) if (c == '\n') _lineNo++;
         }
 
-        private void SafeExec(Action a)
+        private void SafeExec(Action a, string originalCommand)
         {
             try { a(); }
-            catch (Exception ex) { Warn("Bo qua lenh loi: " + ex.Message); }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                RecordMalformedCommand();
+                RecordSkippedCommand();
+                Warn("Bo qua lenh loi: " + ex.Message + " trong: " + originalCommand);
+            }
         }
+
+        private void RecordProcessedCommand() { _diagnostics.ProcessedCommands++; }
+
+        private void RecordMalformedCommand() { _diagnostics.MalformedCommands++; }
+
+        private void RecordSkippedCommand() { _diagnostics.SkippedCommands++; }
 
         private void Warn(string msg)
         {
             _layer.Warnings.Add("Dong " + _lineNo + ": " + msg);
+        }
+
+        private void Report(string stage)
+        {
+            Report(_reportProgress, stage);
+        }
+
+        private static void Report(Action<string> reportProgress, string stage)
+        {
+            if (reportProgress != null) reportProgress(stage);
         }
 
         // ---------- Extended commands (%...%) ----------
@@ -103,10 +229,15 @@ namespace GerberEngine
         {
             // Mot block co the chua nhieu lenh phan cach '*'
             string[] cmds = block.Split(new[] { '*' }, StringSplitOptions.RemoveEmptyEntries);
+            int blockIndex = 0;
             foreach (string raw in cmds)
             {
+                _cancellationToken.ThrowIfCancellationRequested();
+                blockIndex++;
+                if (blockIndex % ProgressPrimitiveBatchSize == 0) Report("Parsed " + blockIndex.ToString(CultureInfo.InvariantCulture) + " extended commands");
                 string cmd = raw.Trim().TrimStart('\r', '\n');
-                if (cmd.Length < 2) continue;
+                if (cmd.Length < 2) { RecordSkippedCommand(); continue; }
+                RecordProcessedCommand();
 
                 if (cmd.StartsWith("FS")) ParseFormat(cmd);
                 else if (cmd.StartsWith("MO")) ParseUnit(cmd);
@@ -115,9 +246,9 @@ namespace GerberEngine
                 else if (cmd.StartsWith("LPD")) _polarity = GerberPolarity.Dark;
                 else if (cmd.StartsWith("LPC")) _polarity = GerberPolarity.Clear;
                 else if (cmd.StartsWith("TF.FileFunction")) ParseFileFunction(cmd);
-                else if (cmd.StartsWith("TF") || cmd.StartsWith("TA") || cmd.StartsWith("TO") || cmd.StartsWith("TD")) { /* X2 attribute khac: bo qua */ }
-                else if (cmd.StartsWith("IP") || cmd.StartsWith("LN") || cmd.StartsWith("SR") || cmd.StartsWith("OF") || cmd.StartsWith("AS") || cmd.StartsWith("IN") || cmd.StartsWith("MI") || cmd.StartsWith("SF")) { /* deprecated/khong ho tro */ }
-                else Warn("Extended command khong nhan dien: " + cmd.Substring(0, Math.Min(10, cmd.Length)));
+                else if (cmd.StartsWith("TF") || cmd.StartsWith("TA") || cmd.StartsWith("TO") || cmd.StartsWith("TD")) { RecordSkippedCommand(); /* X2 attribute khac: bo qua */ }
+                else if (cmd.StartsWith("IP") || cmd.StartsWith("LN") || cmd.StartsWith("SR") || cmd.StartsWith("OF") || cmd.StartsWith("AS") || cmd.StartsWith("IN") || cmd.StartsWith("MI") || cmd.StartsWith("SF")) { RecordSkippedCommand(); /* deprecated/khong ho tro */ }
+                else { RecordSkippedCommand(); Warn("Extended command khong nhan dien: " + cmd.Substring(0, Math.Min(10, cmd.Length))); }
             }
         }
 
@@ -200,8 +331,12 @@ namespace GerberEngine
             // %AMNAME*block1*block2*...*%  - firstCmd la "AMNAME", cac block la phan tu sau trong allCmds
             var macro = new ApertureMacro { Name = firstCmd.Substring(2).Trim() };
             bool after = false;
+            int blockIndex = 0;
             foreach (string cmd in allCmds)
             {
+                _cancellationToken.ThrowIfCancellationRequested();
+                blockIndex++;
+                if (blockIndex % ProgressPrimitiveBatchSize == 0) Report("Parsed " + blockIndex.ToString(CultureInfo.InvariantCulture) + " macro blocks");
                 if (!after) { if (ReferenceEquals(cmd, firstCmd) || cmd.Trim() == firstCmd) after = true; continue; }
                 macro.Blocks.Add(cmd.Trim());
             }
@@ -213,8 +348,8 @@ namespace GerberEngine
         private void HandleWord(string cmd)
         {
             // Co the co G-code dinh kem toa do: "G01X100Y200D01"
-            if (cmd.StartsWith("G04")) return;                       // comment
-            if (cmd == "M02" || cmd == "M00" || cmd == "M01") return; // end of file
+            if (cmd.StartsWith("G04")) { RecordSkippedCommand(); return; }                       // comment
+            if (cmd == "M02" || cmd == "M00" || cmd == "M01") { RecordSkippedCommand(); return; } // end of file
             if (cmd == "G36") { BeginRegion(); return; }
             if (cmd == "G37") { EndRegion(); return; }
             if (cmd == "G74" || cmd == "G75") return;                // quadrant mode: luon xu ly multi-quadrant
@@ -228,7 +363,9 @@ namespace GerberEngine
             {
                 int j = i + 1;
                 while (j < cmd.Length && char.IsDigit(cmd[j])) j++;
-                int g = int.Parse(cmd.Substring(i + 1, j - i - 1), CultureInfo.InvariantCulture);
+                string gNum = cmd.Substring(i + 1, j - i - 1);
+                if (!IsSignedInteger(gNum)) { WarnMalformedWord(cmd, "G-code khong co noi dung so hop le"); return; }
+                int g = int.Parse(gNum, CultureInfo.InvariantCulture);
                 if (g == 1) _interpolation = 1;
                 else if (g == 2) _interpolation = 2;
                 else if (g == 3) _interpolation = 3;
@@ -240,7 +377,9 @@ namespace GerberEngine
             // "Dnn" does not include coordinates: nn>=10 la chon aperture; D01/D02/D03 tran thao tac tai diem hien hanh
             if (cmd[i] == 'D' && !ContainsCoord(cmd, i))
             {
-                int code = int.Parse(cmd.Substring(i + 1), CultureInfo.InvariantCulture);
+                string dOnlyNum = cmd.Substring(i + 1);
+                if (!IsSignedInteger(dOnlyNum)) { WarnMalformedWord(cmd, "D-code khong co noi dung so hop le"); return; }
+                int code = int.Parse(dOnlyNum, CultureInfo.InvariantCulture);
                 if (code >= 10) SelectAperture(code);
                 else if (code == 1) Interpolate(_current, 0, 0);
                 else if (code == 2) MoveTo(_current);
@@ -259,12 +398,27 @@ namespace GerberEngine
                 string num = cmd.Substring(i + 1, j - i - 1);
                 switch (key)
                 {
-                    case 'X': x = ParseCoord(num); break;
-                    case 'Y': y = ParseCoord(num); break;
-                    case 'I': iOfs = ParseCoord(num); break;
-                    case 'J': jOfs = ParseCoord(num); break;
-                    case 'D': dCode = int.Parse(num, CultureInfo.InvariantCulture); break;
-                    default: Warn("Ky tu khong nhan dien '" + key + "' trong: " + cmd); j = i + 1; break;
+                    case 'X':
+                        if (!IsSignedInteger(num)) { WarnMalformedWord(cmd, "X khong co noi dung so hop le"); return; }
+                        x = ParseCoord(num);
+                        break;
+                    case 'Y':
+                        if (!IsSignedInteger(num)) { WarnMalformedWord(cmd, "Y khong co noi dung so hop le"); return; }
+                        y = ParseCoord(num);
+                        break;
+                    case 'I':
+                        if (!IsSignedInteger(num)) { WarnMalformedWord(cmd, "I khong co noi dung so hop le"); return; }
+                        iOfs = ParseCoord(num);
+                        break;
+                    case 'J':
+                        if (!IsSignedInteger(num)) { WarnMalformedWord(cmd, "J khong co noi dung so hop le"); return; }
+                        jOfs = ParseCoord(num);
+                        break;
+                    case 'D':
+                        if (!IsSignedInteger(num)) { WarnMalformedWord(cmd, "D khong co noi dung so hop le"); return; }
+                        dCode = int.Parse(num, CultureInfo.InvariantCulture);
+                        break;
+                    default: RecordSkippedCommand(); Warn("Ky tu khong nhan dien '" + key + "' trong: " + cmd); j = i + 1; break;
                 }
                 i = j;
             }
@@ -284,6 +438,23 @@ namespace GerberEngine
             }
         }
 
+        private void WarnMalformedWord(string cmd, string reason)
+        {
+            RecordMalformedCommand();
+            RecordSkippedCommand();
+            Warn(reason + " trong lenh: " + cmd);
+        }
+
+        private static bool IsSignedInteger(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return false;
+            int start = value[0] == '-' || value[0] == '+' ? 1 : 0;
+            if (start == value.Length) return false;
+            for (int k = start; k < value.Length; k++)
+                if (!char.IsDigit(value[k])) return false;
+            return true;
+        }
+
         private static bool ContainsCoord(string cmd, int from)
         {
             for (int k = from; k < cmd.Length; k++)
@@ -294,7 +465,6 @@ namespace GerberEngine
         private double ParseCoord(string num)
         {
             // Omit leading zeros (normalization): value = int / 10^decDigits
-            if (string.IsNullOrEmpty(num)) return 0;
             long v = long.Parse(num, CultureInfo.InvariantCulture);
             double val = v / Math.Pow(10, _decDigits);
             return ToMm(val);
@@ -403,6 +573,13 @@ namespace GerberEngine
             _contour = null;
         }
     }
+    public sealed class GerberParserDiagnostics
+    {
+        public int ProcessedCommands;
+        public int MalformedCommands;
+        public int SkippedCommands;
+    }
+
     /// <summary>
     /// Recognize the X2 FileFunction file type or file name (FR-002).
     /// </summary>
