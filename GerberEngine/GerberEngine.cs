@@ -1,4 +1,4 @@
-﻿// GerberEngine/GerberEngine.cs
+// GerberEngine/GerberEngine.cs
 // GerberEngine's public FACADE API (BR-003, NFR-004).
 // This is a stable contract for reuse: WinForms app, console tool, service...
 // Depends only on System.Drawing - NOT dependent on System.Windows.Forms.
@@ -6,6 +6,8 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.IO;
+using System.Text;
 using System.Threading;
 
 namespace GerberEngine
@@ -78,10 +80,18 @@ namespace GerberEngine
     public sealed class RenderProgressEventArgs : EventArgs
     {
         public int Done, Total;
+        public string Stage;
+
         public RenderProgressEventArgs(int done, int total)
+            : this(done, total, null)
+        {
+        }
+
+        public RenderProgressEventArgs(int done, int total, string stage)
         {
             this.Done = done;
             this.Total = total;
+            this.Stage = stage;
         }
     }
     /// <summary>
@@ -129,7 +139,31 @@ namespace GerberEngine
         /// </summary>
         public GerberScene LoadScene(IEnumerable<string> filePaths, CancellationToken cancellationToken)
         {
-            return new GerberSceneBuilder().Build(filePaths, cancellationToken);
+            GerberScene scene = new GerberSceneBuilder().Build(filePaths, cancellationToken, OnProgressStage);
+            OnProgressStage("Completed");
+            return scene;
+        }
+
+        public string CreateSvg(GerberScene scene, SvgRenderOptions options, CancellationToken cancellationToken)
+        {
+            string svg = CreateSvgCore(scene, options, cancellationToken);
+            OnProgressStage("Completed");
+            return svg;
+        }
+
+        public void SaveSvg(GerberScene scene, SvgRenderOptions options, string outputPath, CancellationToken cancellationToken)
+        {
+            if (outputPath == null) throw new ArgumentNullException("outputPath");
+            string svg = CreateSvgCore(scene, options, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            OnProgressStage("Writing SVG");
+            File.WriteAllText(outputPath, svg, Encoding.UTF8);
+            OnProgressStage("Completed");
+        }
+
+        private string CreateSvgCore(GerberScene scene, SvgRenderOptions options, CancellationToken cancellationToken)
+        {
+            return new GerberSvgRenderer().Render(scene, options, cancellationToken, OnProgressStage);
         }
         /// <summary>
         /// Bbox combines most visible layers (mm). Empty if nothing.
@@ -211,6 +245,12 @@ namespace GerberEngine
         {
             EventHandler<RenderProgressEventArgs> h = RenderProgress;
             if (h != null) h(this, new RenderProgressEventArgs(done, total));
+        }
+
+        private void OnProgressStage(string stage)
+        {
+            EventHandler<RenderProgressEventArgs> h = RenderProgress;
+            if (h != null) h(this, new RenderProgressEventArgs(0, 0, stage));
         }
 
         // ---------- Export PNG (FR-012) ----------
