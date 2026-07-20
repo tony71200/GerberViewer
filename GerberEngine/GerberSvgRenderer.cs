@@ -29,13 +29,32 @@ namespace GerberEngine
     public sealed class GerberSvgRenderer
     {
         private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
+        private const int ProgressPrimitiveBatchSize = 10000;
+
+        public string Render(GerberScene scene, SvgRenderOptions options)
+        {
+            return Render(scene, options, CancellationToken.None, null);
+        }
+
+        public string Render(GerberScene scene, SvgRenderOptions options, Action<string> reportProgress)
+        {
+            return Render(scene, options, CancellationToken.None, reportProgress);
+        }
 
         public string Render(GerberScene scene, SvgRenderOptions options, CancellationToken cancellationToken)
+        {
+            return Render(scene, options, cancellationToken, null);
+        }
+
+        public string Render(GerberScene scene, SvgRenderOptions options, CancellationToken cancellationToken, Action<string> reportProgress)
         {
             if (scene == null) throw new ArgumentNullException("scene");
             if (options == null) options = new SvgRenderOptions();
 
-            RectangleD bounds = scene.GetBoundsMm();
+            cancellationToken.ThrowIfCancellationRequested();
+            Report(reportProgress, "Calculating bounds");
+            RectangleD bounds = GetBoundsMm(scene, cancellationToken, reportProgress);
+            cancellationToken.ThrowIfCancellationRequested();
             if (bounds.IsEmpty)
             {
                 bounds = new RectangleD { MinX = 0, MinY = 0, MaxX = 1, MaxY = 1 };
@@ -57,6 +76,8 @@ namespace GerberEngine
                 writer.WriteAttributeString("viewBox", Format(bounds.MinX) + " " + Format(-bounds.MaxY) + " " + Format(width) + " " + Format(height));
                 writer.WriteAttributeString("xmlns", "xlink", null, "http://www.w3.org/1999/xlink");
 
+                Report(reportProgress, "Generating SVG definitions");
+
                 if (options.IncludeBackground)
                 {
                     writer.WriteStartElement("rect");
@@ -68,14 +89,16 @@ namespace GerberEngine
                     writer.WriteEndElement();
                 }
 
+                Report(reportProgress, "Generating layer geometry");
                 writer.WriteStartElement("g");
                 writer.WriteAttributeString("transform", "scale(1,-1)");
                 int layerIndex = 0;
                 foreach (GerberSceneLayer layer in scene.Layers)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    Report(reportProgress, "Generating SVG layer " + (layerIndex + 1).ToString(Invariant));
                     string color = ResolveLayerColor(layer, layerIndex, options);
-                    WriteLayer(writer, layer, color, layerIndex, cancellationToken);
+                    WriteLayer(writer, layer, color, layerIndex, cancellationToken, reportProgress);
                     layerIndex++;
                 }
                 writer.WriteEndElement();
@@ -84,7 +107,33 @@ namespace GerberEngine
             return sb.ToString();
         }
 
-        private static void WriteLayer(XmlWriter writer, GerberSceneLayer layer, string color, int layerIndex, CancellationToken cancellationToken)
+        private static void Report(Action<string> reportProgress, string stage)
+        {
+            if (reportProgress != null) reportProgress(stage);
+        }
+
+        private static RectangleD GetBoundsMm(GerberScene scene, CancellationToken cancellationToken, Action<string> reportProgress)
+        {
+            RectangleD bounds = RectangleD.Empty;
+            int layerIndex = 0;
+            foreach (GerberSceneLayer layer in scene.Layers)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Report(reportProgress, "Calculating bounds for layer " + (layerIndex + 1).ToString(Invariant));
+                int primitiveIndex = 0;
+                foreach (GerberScenePrimitive primitive in layer.Primitives)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (primitiveIndex > 0 && primitiveIndex % ProgressPrimitiveBatchSize == 0) Report(reportProgress, "Calculated bounds for " + primitiveIndex.ToString(Invariant) + " primitives");
+                    bounds.Expand(primitive.GetBoundsMm());
+                    primitiveIndex++;
+                }
+                layerIndex++;
+            }
+            return bounds;
+        }
+
+        private static void WriteLayer(XmlWriter writer, GerberSceneLayer layer, string color, int layerIndex, CancellationToken cancellationToken, Action<string> reportProgress)
         {
             string maskId = "gerber-layer-mask-" + layerIndex.ToString(Invariant);
             writer.WriteStartElement("defs");
@@ -92,10 +141,13 @@ namespace GerberEngine
             writer.WriteAttributeString("id", maskId);
             writer.WriteAttributeString("maskUnits", "userSpaceOnUse");
             writer.WriteStartElement("g");
+            int primitiveIndex = 0;
             foreach (GerberScenePrimitive primitive in layer.Primitives)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                WritePrimitive(writer, primitive, primitive.Polarity == GerberPolarity.Clear ? "black" : "white");
+                if (primitiveIndex > 0 && primitiveIndex % ProgressPrimitiveBatchSize == 0) Report(reportProgress, "Generated " + primitiveIndex.ToString(Invariant) + " SVG mask primitives");
+                WritePrimitive(writer, primitive, primitive.Polarity == GerberPolarity.Clear ? "black" : "white", cancellationToken);
+                primitiveIndex++;
             }
             writer.WriteEndElement();
             writer.WriteEndElement();
@@ -105,24 +157,27 @@ namespace GerberEngine
             writer.WriteAttributeString("id", "gerber-layer-" + layerIndex.ToString(Invariant));
             writer.WriteAttributeString("data-layer-index", layerIndex.ToString(Invariant));
             writer.WriteAttributeString("mask", "url(#" + maskId + ")");
+            primitiveIndex = 0;
             foreach (GerberScenePrimitive primitive in layer.Primitives)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (primitive.Polarity == GerberPolarity.Dark) WritePrimitive(writer, primitive, color);
+                if (primitiveIndex > 0 && primitiveIndex % ProgressPrimitiveBatchSize == 0) Report(reportProgress, "Generated " + primitiveIndex.ToString(Invariant) + " SVG primitives");
+                if (primitive.Polarity == GerberPolarity.Dark) WritePrimitive(writer, primitive, color, cancellationToken);
+                primitiveIndex++;
             }
             writer.WriteEndElement();
         }
 
-        private static void WritePrimitive(XmlWriter writer, GerberScenePrimitive primitive, string color)
+        private static void WritePrimitive(XmlWriter writer, GerberScenePrimitive primitive, string color, CancellationToken cancellationToken)
         {
             var stroke = primitive as StrokePrimitive;
             if (stroke != null) { WriteStroke(writer, stroke, color); return; }
             var arc = primitive as ArcPrimitive;
             if (arc != null) { WriteArc(writer, arc, color); return; }
             var flash = primitive as FlashPrimitive;
-            if (flash != null) { WriteFlash(writer, flash, color); return; }
+            if (flash != null) { WriteFlash(writer, flash, color, cancellationToken); return; }
             var region = primitive as RegionPrimitive;
-            if (region != null) { WriteRegion(writer, region, color); return; }
+            if (region != null) { WriteRegion(writer, region, color, cancellationToken); return; }
         }
 
         private static void WriteStroke(XmlWriter writer, StrokePrimitive stroke, string color)
@@ -152,7 +207,7 @@ namespace GerberEngine
             writer.WriteEndElement();
         }
 
-        private static void WriteFlash(XmlWriter writer, FlashPrimitive flash, string color)
+        private static void WriteFlash(XmlWriter writer, FlashPrimitive flash, string color, CancellationToken cancellationToken)
         {
             double[] p = flash.Aperture.Parameters;
             switch (flash.Aperture.Shape)
@@ -164,7 +219,7 @@ namespace GerberEngine
                 case ApertureShape.Obround:
                     WriteObround(writer, flash.Position, p, color); break;
                 case ApertureShape.Polygon:
-                    WritePolygon(writer, flash.Position, p, color); break;
+                    WritePolygon(writer, flash.Position, p, color, cancellationToken); break;
                 default:
                     WriteCircle(writer, flash.Position, flash.GetBoundsMm().Width / 2, color); break;
             }
@@ -207,7 +262,7 @@ namespace GerberEngine
             writer.WriteEndElement();
         }
 
-        private static void WritePolygon(XmlWriter writer, PointD center, double[] p, string color)
+        private static void WritePolygon(XmlWriter writer, PointD center, double[] p, string color, CancellationToken cancellationToken)
         {
             double diameter = p.Length > 0 ? p[0] : 0.001;
             int n = p.Length > 1 ? Math.Max(3, (int)p[1]) : 3;
@@ -215,6 +270,7 @@ namespace GerberEngine
             var points = new StringBuilder();
             for (int i = 0; i < n; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 double ang = rotDeg * Math.PI / 180 + 2 * Math.PI * i / n;
                 if (i > 0) points.Append(' ');
                 points.Append(Format(center.X + diameter / 2 * Math.Cos(ang))).Append(',').Append(Format(center.Y + diameter / 2 * Math.Sin(ang)));
@@ -225,15 +281,17 @@ namespace GerberEngine
             writer.WriteEndElement();
         }
 
-        private static void WriteRegion(XmlWriter writer, RegionPrimitive region, string color)
+        private static void WriteRegion(XmlWriter writer, RegionPrimitive region, string color, CancellationToken cancellationToken)
         {
             var d = new StringBuilder();
             foreach (RegionContour contour in region.Contours)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 PointD cur = contour.Start;
                 d.Append("M ").Append(Format(cur.X)).Append(' ').Append(Format(cur.Y));
                 foreach (RegionSegment segment in contour.Segments)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     d.Append(' ');
                     if (segment.IsArc) d.Append(ArcCommand(cur, segment.End, segment.Center, segment.Clockwise));
                     else d.Append("L ").Append(Format(segment.End.X)).Append(' ').Append(Format(segment.End.Y));
