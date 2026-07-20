@@ -39,5 +39,75 @@
     <li><code>LastStitchedOutputPath</code>: output stitch gần nhất.</li>
     <li><code>Changed</code>/<code>NotifyChanged</code>: typed event thông báo state thay đổi.</li>
   </ul>
+
+  <h2>Solution/Project Configuration</h2>
+  <ul>
+    <li><code>GerberStitching.Core</code>: project class library mới, target <code>.NET Framework 4.8</code>, assembly <code>GerberStitching.Core</code>, root namespace <code>GerberViewer.Stitching</code>.</li>
+    <li><code>GerberViewer.sln</code>: thêm project <code>GerberStitching.Core\GerberStitching.Core.csproj</code> với mappings <code>Debug|Any CPU</code>, <code>Debug|x64</code>, <code>Release|Any CPU</code>, <code>Release|x64</code>.</li>
+    <li><code>PlatformTarget</code>: các configuration của <code>GerberStitching.Core</code> set <code>x64</code> để thống nhất với OpenCV/HALCON native runtime.</li>
+    <li><code>Prefer32Bit</code>: các configuration x64 liên quan native interop trong <code>GerberViewer</code>, <code>GerberEngine</code>, <code>EWindowControl</code> và <code>GerberStitching.Core</code> set <code>false</code>.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/RobotManager/Domain</h2>
+  <ul>
+    <li><code>namespace GerberViewer.Stitching.RobotManager</code>: namespace thống nhất cho domain/order/traversal; không dùng namespace legacy <code>StitchingImage.*</code>.</li>
+    <li><code>OrderMode</code>: mode traversal gồm <code>Zigzag</code>, <code>Branch</code>, <code>BranchDown</code>.</li>
+    <li><code>StartCorner</code>: corner xuất phát gồm <code>TopLeft</code>, <code>TopRight</code>, <code>BottomLeft</code>, <code>BottomRight</code>.</li>
+    <li><code>RobotMovement</code>: hướng robot gồm <code>Left</code>, <code>Right</code>, <code>Up</code>, <code>Down</code>.</li>
+    <li><code>StartOrder</code>: version 1 chỉ có bốn preset <code>TopLeftRight</code>, <code>TopLeftDown</code>, <code>BottomRightLeft</code>, <code>BottomRightUp</code>.</li>
+    <li><code>StartOrderResolution</code>: DTO chứa kết quả resolve gồm <code>StartCorner</code> và <code>RobotMovement</code>.</li>
+    <li><code>StartOrderResolver.Resolve(StartOrder order)</code>: map <code>TopLeftRight =&gt; TopLeft/Right</code>, <code>TopLeftDown =&gt; TopLeft/Down</code>, <code>BottomRightLeft =&gt; BottomRight/Left</code>, <code>BottomRightUp =&gt; BottomRight/Up</code>.</li>
+    <li><code>ImageInfo</code>: thông tin tile gồm <code>FilePath</code>, <code>GroupId</code>, <code>ImageId</code>, <code>PositionId</code>, <code>XRobot</code>, <code>YRobot</code>, <code>Row</code>, <code>Column</code>.</li>
+    <li><code>OrderOptions</code>: cấu hình traversal gồm <code>Mode</code>, <code>StartCorner</code>, <code>RobotMovement</code>, <code>NodeInterval</code>.</li>
+    <li><code>OrderOptions.FromStartOrder(StartOrder order, OrderMode mode)</code>: tạo <code>OrderOptions</code> từ preset <code>StartOrder</code>.</li>
+    <li><code>Bounds2D</code>: bounds robot/image gồm <code>MinX</code>, <code>MinY</code>, <code>MaxX</code>, <code>MaxY</code>.</li>
+    <li><code>Bounds2D.FromPoints(IEnumerable&lt;ImageInfo&gt; points)</code>: tính bounds từ tập tile.</li>
+    <li><code>NodeLinks</code>: links traversal theo <code>ImageId</code> gồm <code>HNext</code>, <code>VNext</code>, <code>Prev</code>, <code>Next</code>.</li>
+    <li><code>GridCell</code>: vị trí matrix gồm <code>Row</code>, <code>Column</code>.</li>
+    <li><code>EdgeDir</code>: hướng cạnh gồm <code>Horizontal</code>, <code>Vertical</code>.</li>
+    <li><code>PathSegment</code>: cạnh vẽ/duyệt gồm <code>FromId</code>, <code>ToId</code>, <code>FromCell</code>, <code>ToCell</code>, <code>Direction</code>.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/RobotManager/RobotArrange</h2>
+  <ul>
+    <li><code>ArrangeComponent</code>: kết quả arrange một component gồm <code>Index</code>, <code>Items</code>, <code>Matrix</code>, <code>Bounds</code>.</li>
+    <li><code>ArrangeBatchResult</code>: kết quả arrange theo group gồm <code>GroupId</code> và danh sách <code>Components</code>.</li>
+    <li><code>RobotArrange.FromPhysicalMatrix(int groupId, ImageInfo[,] physicalMatrix, OrderOptions options)</code>: ordering version 1 đọc physical matrix <code>[row,column]</code>, apply start corner để tạo matrix traversal input, không dùng legacy <code>RobotOrderer.cs</code>.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/RobotManager/TraversalGraph</h2>
+  <ul>
+    <li><code>TraversalGraph</code>: graph traversal từ matrix đã arrange, expose <code>Mode</code>, <code>Matrix</code>, <code>LinksById</code>, <code>CellById</code>, <code>PathSegments</code>.</li>
+    <li><code>TraversalGraph.Build(List&lt;List&lt;ImageInfo&gt;&gt; matrix, OrderOptions options)</code>: build graph từ physical-matrix arrangement và apply mode <code>Zigzag</code>/<code>Branch</code>/<code>BranchDown</code>.</li>
+    <li><code>BuildRows</code>: tạo horizontal row links và zigzag chain khi mode <code>Zigzag</code>.</li>
+    <li><code>BuildBranchDown</code>: tạo vertical column links và head-to-head horizontal links cho mode <code>BranchDown</code>.</li>
+    <li><code>EnumerateEdges()</code>: trả danh sách cạnh traversal dạng <code>Tuple&lt;fromId,toId,EdgeDir&gt;</code>.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/Models</h2>
+  <ul>
+    <li><code>namespace GerberViewer.Stitching.Models</code>: namespace thống nhất cho workflow/config/report models.</li>
+    <li><code>PoseSource</code>: nguồn pose gồm <code>SampleAlignment</code>, <code>NeighborAlignment</code>, <code>AnchorAdjusted</code>, <code>Interpolated</code>, <code>ExpectedGridOffset</code>, <code>Manual</code>, <code>Excluded</code>, <code>Failed</code>.</li>
+    <li><code>GerberSampleConfig</code>: cấu hình sample gồm <code>Rows</code>, <code>Columns</code>, <code>TileWidth</code>, <code>TileHeight</code>, <code>StartOrder</code>.</li>
+    <li><code>AlignStitchConfig</code>: cấu hình align/stitch gồm <code>MinOverlapRatio</code>, <code>MaxAbsRotationDeg</code>, <code>EnforceRobotDirection</code>.</li>
+    <li><code>GerberWorkflowConfig</code>: cấu hình workflow tổng hợp gồm <code>Sample</code> và <code>Alignment</code>.</li>
+    <li><code>SampleManifest</code>: manifest sample gồm <code>RootDirectory</code>, <code>Tiles</code>, <code>CreatedUtc</code>.</li>
+    <li><code>SampleTileInfo</code>: tile expected gồm <code>Row</code>, <code>Column</code>, <code>ExpectedPath</code>, <code>ExpectedX</code>, <code>ExpectedY</code>.</li>
+    <li><code>CapturedImageInfo</code>: ảnh capture gồm <code>FilePath</code>, <code>Row</code>, <code>Column</code>, <code>RobotX</code>, <code>RobotY</code>, <code>CapturedUtc</code>.</li>
+    <li><code>StitchImagePose</code>: pose stitch gồm <code>Row</code>, <code>Column</code>, <code>X</code>, <code>Y</code>, <code>RotationDeg</code>, <code>Source</code>.</li>
+    <li><code>ProcessingReport</code>: report xử lý gồm <code>Succeeded</code>, <code>Messages</code>, <code>Poses</code>.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/Utils</h2>
+  <ul>
+    <li><code>namespace GerberViewer.Stitching.Utils</code>: namespace thống nhất cho utility stitching.</li>
+    <li><code>StitchingMethod</code>: method align/stitch gồm <code>CoarseFine</code>, <code>PhaseCorrelation</code>, <code>Manual</code>.</li>
+    <li><code>StitchingConfig</code>: config utility gồm <code>Method</code>, <code>WorkMegapix</code>, <code>RoiMatchFraction</code>, <code>RoiMinPx</code>, <code>MinOverlapRatio</code>, <code>MaxAbsRotationDeg</code>, <code>EnforceRobotDirection</code>, manual offsets và <code>Clone()</code>.</li>
+    <li><code>ImageRead.ImageReadException</code>: exception khi ảnh không tồn tại hoặc đọc ảnh thất bại.</li>
+    <li><code>ImageRead.ReadBitmap(string filename)</code>: đọc ảnh bằng <code>System.Drawing.Bitmap</code> và normalize format.</li>
+    <li><code>ImageRead.Ensure24bppBgr(Bitmap src)</code>: convert/clone bitmap về <code>PixelFormat.Format24bppRgb</code>.</li>
+    <li><code>TiffBigWriter.SaveTiffGray8Async(...)</code>: ghi TIFF grayscale 8-bit từ buffer byte.</li>
+    <li><code>TiffBigWriter.SaveTiffRgb24Async(...)</code>: ghi TIFF RGB24 từ buffer byte RGB.</li>
+  </ul>
 </body>
 </html>
