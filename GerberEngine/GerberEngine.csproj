@@ -70,6 +70,7 @@
     <Compile Include="GerberSceneBuilder.cs" />
     <Compile Include="GerberSceneLayer.cs" />
     <Compile Include="GerberScenePrimitive.cs" />
+    <Compile Include="GerberSvgRenderer.cs" />
     <Compile Include="GerberRenderer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

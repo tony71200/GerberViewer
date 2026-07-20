@@ -13,7 +13,7 @@ namespace GerberEngine
 
         public IReadOnlyList<GerberSceneLayer> Layers { get { return _layers; } }
 
-        internal void AddLayer(GerberSceneLayer layer)
+        public void AddLayer(GerberSceneLayer layer)
         {
             _layers.Add(layer);
         }
