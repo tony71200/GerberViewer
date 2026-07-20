@@ -90,7 +90,7 @@
             //
             this.tslDpi.Text = "Export DPI:";
             this.tscDpi.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.tscDpi.Items.AddRange(new object[] { "150", "300", "600", "1200", "6000"});
+            this.tscDpi.Items.AddRange(new object[] { "150", "300", "600", "1200", "2400", "3600", "4800", "6000"});
             this.tscDpi.Size = new System.Drawing.Size(70, 25);
             this.tslMode.Text = "Color Mode:";
             this.tscMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
