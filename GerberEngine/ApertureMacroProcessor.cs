@@ -176,12 +176,16 @@ namespace GerberEngine
             }
         }
 
-        // ---------- Macro expression evaluation tool: so, $n, + - x X / and parentheses ----------
+        // ---------- Macro expression evaluation tool: numbers, $n, + - x X / and parentheses ----------
+        // Unsupported syntax (including exponent notation such as 1e3) raises per-block warnings and is skipped.
 
         private static double Eval(string expr, Dictionary<int, double> vars)
         {
             int pos = 0;
             double v = EvalSum(expr, ref pos, vars);
+            SkipSpaces(expr, ref pos);
+            if (pos < expr.Length)
+                throw new FormatException("unsupported expression syntax near '" + expr.Substring(pos) + "'");
             return v;
         }
 
@@ -190,6 +194,8 @@ namespace GerberEngine
             double v = EvalProduct(e, ref p, vars);
             while (p < e.Length)
             {
+                SkipSpaces(e, ref p);
+                if (p >= e.Length) break;
                 char c = e[p];
                 if (c == '+') { p++; v += EvalProduct(e, ref p, vars); }
                 else if (c == '-') { p++; v -= EvalProduct(e, ref p, vars); }
@@ -203,6 +209,8 @@ namespace GerberEngine
             double v = EvalAtom(e, ref p, vars);
             while (p < e.Length)
             {
+                SkipSpaces(e, ref p);
+                if (p >= e.Length) break;
                 char c = e[p];
                 if (c == 'x' || c == 'X') { p++; v *= EvalAtom(e, ref p, vars); }
                 else if (c == '/') { p++; v /= EvalAtom(e, ref p, vars); }
@@ -213,8 +221,9 @@ namespace GerberEngine
 
         private static double EvalAtom(string e, ref int p, Dictionary<int, double> vars)
         {
-            while (p < e.Length && e[p] == ' ') p++;
-            if (p >= e.Length) return 0;
+            SkipSpaces(e, ref p);
+            if (p >= e.Length)
+                throw new FormatException("empty numeric token");
 
             if (e[p] == '(')
             {
@@ -236,7 +245,15 @@ namespace GerberEngine
             }
             int s0 = p;
             while (p < e.Length && (char.IsDigit(e[p]) || e[p] == '.')) p++;
-            return double.Parse(e.Substring(s0, p - s0), CultureInfo.InvariantCulture);
+            int length = p - s0;
+            if (length == 0)
+                throw new FormatException("empty numeric token");
+            return double.Parse(e.Substring(s0, length), CultureInfo.InvariantCulture);
+        }
+
+        private static void SkipSpaces(string e, ref int p)
+        {
+            while (p < e.Length && e[p] == ' ') p++;
         }
     }
 }

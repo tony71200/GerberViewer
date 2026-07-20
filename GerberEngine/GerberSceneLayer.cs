@@ -15,6 +15,7 @@ namespace GerberEngine
         public GerberUnit SourceUnit = GerberUnit.Millimeter;
         public List<GerberScenePrimitive> Primitives = new List<GerberScenePrimitive>();
         public List<string> Warnings = new List<string>();
+        public GerberParserDiagnostics Diagnostics = new GerberParserDiagnostics();
 
         public RectangleD GetBoundsMm()
         {
