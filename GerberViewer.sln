@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GerberViewer", "GerberViewe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GerberEngine", "GerberEngine\GerberEngine.csproj", "{E8CD28FA-DA0B-4F1C-B301-267BE64C0513}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GerberEngine.Tests", "GerberEngine.Tests\GerberEngine.Tests.csproj", "{9DF39E9F-2D33-4A57-B592-82603F409353}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,6 +33,14 @@ Global
 		{E8CD28FA-DA0B-4F1C-B301-267BE64C0513}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E8CD28FA-DA0B-4F1C-B301-267BE64C0513}.Release|x64.ActiveCfg = Release|x64
 		{E8CD28FA-DA0B-4F1C-B301-267BE64C0513}.Release|x64.Build.0 = Release|x64
+		{9DF39E9F-2D33-4A57-B592-82603F409353}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9DF39E9F-2D33-4A57-B592-82603F409353}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9DF39E9F-2D33-4A57-B592-82603F409353}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9DF39E9F-2D33-4A57-B592-82603F409353}.Debug|x64.Build.0 = Debug|Any CPU
+		{9DF39E9F-2D33-4A57-B592-82603F409353}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9DF39E9F-2D33-4A57-B592-82603F409353}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9DF39E9F-2D33-4A57-B592-82603F409353}.Release|x64.ActiveCfg = Release|Any CPU
+		{9DF39E9F-2D33-4A57-B592-82603F409353}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
