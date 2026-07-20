@@ -152,6 +152,10 @@
     <li><code>GlobalTransformStitcher.StitchFromGlobalTransforms</code>: tính transformed bounds, canvas translation/scale, preview megapixel guard, warp theo global pose, mask-style alpha composition, optional blending flag, preview theo <code>PreviewUpdateInterval</code>, lưu full-resolution độc lập preview scale.</li>
     <li><code>StitchFromGlobalTransformsOptions</code> và <code>StitchPreview</code>: cấu hình preview/TIFF/output và payload cập nhật preview.</li>
   </ul>
+  <h2>GerberViewer/Stitching</h2>
+  <ul>
+    <li><code>PathCanvasControl.SetData(ArrangeBatchResult arrange, TraversalGraph traversal)</code>: nhận kết quả arrange và traversal graph hiện có, tránh kiểu cũ <code>TraversalBatchResult</code> không tồn tại.</li>
+  </ul>
   <h2>GerberViewer/Workflow và GerberViewer/Views</h2>
   <ul>
     <li><code>HalconRuntimeValidator.Validate</code>: blocking startup validator trước <code>Application.Run</code>, kiểm tra x64, managed/native HALCON DLL resolution, version, license/operator/NCC smoke-test diagnostics; fail thì ghi <code>halcon-startup.log</code>, hiện dialog và exit, không fallback OpenCV.</li>

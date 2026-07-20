@@ -39,7 +39,7 @@ namespace GerberViewer.Stitching.DesignControls
             _canvas.Invalidate();
         }
 
-        public void SetData(ArrangeBatchResult arrange, TraversalBatchResult traversal)
+        public void SetData(ArrangeBatchResult arrange, TraversalGraph traversal)
         {
             var items = arrange != null ? arrange.Components.SelectMany(c => c.Items ?? new ImageInfo[0]) : Enumerable.Empty<ImageInfo>();
             _capturedImages = items.Select((x, i) => new CapturedImageInfo { FilePath = x.FilePath, Row = x.Row, Column = x.Column, OrderIndex = i, RobotX = x.XRobot, RobotY = x.YRobot, State = OrderNodeState.Pending }).ToList();
