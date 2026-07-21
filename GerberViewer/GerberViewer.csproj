@@ -124,9 +124,7 @@
     <Compile Include="Views\CreateGerberSampleControl.Designer.cs">
       <DependentUpon>CreateGerberSampleControl.cs</DependentUpon>
     </Compile>
-    <Compile Include="Stitching\PathCanvasControl.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
+    <Compile Include="Stitching\PathCanvasControl.cs" />
     <Compile Include="Views\AlignStitchingControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -149,6 +147,9 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
+    <EmbeddedResource Include="Views\AlignStitchingControl.resx">
+      <DependentUpon>AlignStitchingControl.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Views\CreateGerberSampleControl.resx">
       <DependentUpon>CreateGerberSampleControl.cs</DependentUpon>
     </EmbeddedResource>

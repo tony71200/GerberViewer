@@ -24,19 +24,32 @@ namespace GerberViewer.Views
         public WorkflowContext WorkflowContext
         {
             get { return _workflowContext; }
-            set { if (_workflowContext != null) _workflowContext.Changed -= WorkflowContext_Changed; _workflowContext = value; if (_workflowContext != null) _workflowContext.Changed += WorkflowContext_Changed; RefreshContextLabels(); }
+            set
+            {
+                if (_workflowContext != null)
+                {
+                    _workflowContext.Changed -= WorkflowContext_Changed;
+                    _workflowContext = value;
+                    if (_workflowContext != null)
+                    {
+                        if (_workflowContext != null) _workflowContext.Changed += WorkflowContext_Changed;
+                    }
+                }
+            }
         }
 
         public AlignStitchingControl() { InitializeComponent(); InitializeLogger(); alignConfigGrid.SelectedObject = _config; UpdateRunState(); }
         private void InitializeLogger() { _logger.Debug = true; _logger.SetOpenListBox(true, lstTab3Log); _logger.SetOpenFile(true, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "Tab3"), "AlignStitch"); }
-        private void WorkflowContext_Changed(object sender, EventArgs e) { RefreshContextLabels(); }
-
-        private void RefreshContextLabels()
-        {
-            if (lblSampleRaster == null) return;
-            lblSampleRaster.Text = _workflowContext == null || string.IsNullOrEmpty(_workflowContext.SampleRasterPath) ? "Source sample raster: -" : "Source sample raster: " + _workflowContext.SampleRasterPath;
-            lblLastOutput.Text = _workflowContext == null || string.IsNullOrEmpty(_workflowContext.LastStitchedOutputPath) ? "Last stitched output: -" : "Last stitched output: " + _workflowContext.LastStitchedOutputPath;
+        private void WorkflowContext_Changed(object sender, EventArgs e) { 
+            //RefreshContextLabels(); 
         }
+
+        //private void RefreshContextLabels()
+        //{
+        //    if (lblSampleRaster == null) return;
+        //    lblSampleRaster.Text = _workflowContext == null || string.IsNullOrEmpty(_workflowContext.SampleRasterPath) ? "Source sample raster: -" : "Source sample raster: " + _workflowContext.SampleRasterPath;
+        //    lblLastOutput.Text = _workflowContext == null || string.IsNullOrEmpty(_workflowContext.LastStitchedOutputPath) ? "Last stitched output: -" : "Last stitched output: " + _workflowContext.LastStitchedOutputPath;
+        //}
 
         private void btnSelectManifest_Click(object sender, EventArgs e)
         {
@@ -142,5 +155,10 @@ namespace GerberViewer.Views
         private static OrderNodeState ToNodeState(PoseSource source) { if (source == PoseSource.SampleAlignment) return OrderNodeState.SampleAlignOk; if (source == PoseSource.NeighborAlignment) return OrderNodeState.NeighborAlignOk; if (source == PoseSource.AnchorAdjusted) return OrderNodeState.AnchorAdjusted; if (source == PoseSource.Interpolated) return OrderNodeState.Interpolated; if (source == PoseSource.Manual) return OrderNodeState.Manual; if (source == PoseSource.Excluded) return OrderNodeState.Excluded; if (source == PoseSource.ExpectedGridOffset) return OrderNodeState.ExpectedGridOffset; return OrderNodeState.Failed; }
         private static string ResolveTilePath(string manifestFolder, string expectedPath) { return Path.IsPathRooted(expectedPath) ? expectedPath : Path.Combine(manifestFolder, expectedPath); }
         private static string CommonParent(IList<string> paths) { if (paths == null || paths.Count == 0) return string.Empty; var dirs = paths.Select(Path.GetDirectoryName).Where(x => !string.IsNullOrEmpty(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList(); return dirs.Count == 1 ? dirs[0] : string.Join("; ", dirs.Take(3).ToArray()); }
+
+        private void txtImageFolder_TextChanged(object sender, EventArgs e)
+        {
+
+        }
     }
 }

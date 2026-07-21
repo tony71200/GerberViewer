@@ -8,9 +8,32 @@ using GerberViewer.Stitching.RobotManager;
 
 namespace GerberViewer.Stitching.DesignControls
 {
-    public sealed class PathCanvasNode { public int NodeId { get; set; } public int OrderIndex { get; set; } public int Row { get; set; } public int Column { get; set; } public double X { get; set; } public double Y { get; set; } public OrderNodeState State { get; set; } }
-    public sealed class PathCanvasEdge { public int FromNodeId { get; set; } public int ToNodeId { get; set; } public string Layer { get; set; } }
-    public sealed class PathCanvasSnapshot { public IList<PathCanvasNode> Nodes { get; private set; } public IList<PathCanvasEdge> Edges { get; private set; } public PathCanvasSnapshot(IEnumerable<PathCanvasNode> nodes, IEnumerable<PathCanvasEdge> edges) { Nodes = (nodes ?? Enumerable.Empty<PathCanvasNode>()).OrderBy(n => n.OrderIndex).ToList(); Edges = (edges ?? Enumerable.Empty<PathCanvasEdge>()).ToList(); } }
+    public sealed class PathCanvasNode 
+    { 
+        public int NodeId { get; set; } 
+        public int OrderIndex { get; set; } 
+        public int Row { get; set; } 
+        public int Column { get; set; } 
+        public double X { get; set; } 
+        public double Y { get; set; } 
+        public OrderNodeState State { get; set; } 
+    }
+    public sealed class PathCanvasEdge 
+    { 
+        public int FromNodeId { get; set; } 
+        public int ToNodeId { get; set; } 
+        public string Layer { get; set; } 
+    }
+    public sealed class PathCanvasSnapshot 
+    { 
+        public IList<PathCanvasNode> Nodes { get; private set; } 
+        public IList<PathCanvasEdge> Edges { get; private set; } 
+        public PathCanvasSnapshot(IEnumerable<PathCanvasNode> nodes, IEnumerable<PathCanvasEdge> edges) 
+        { 
+            Nodes = (nodes ?? Enumerable.Empty<PathCanvasNode>()).OrderBy(n => n.OrderIndex).ToList(); 
+            Edges = (edges ?? Enumerable.Empty<PathCanvasEdge>()).ToList(); 
+        } 
+    }
 
     public sealed class PathCanvasControl : UserControl
     {
