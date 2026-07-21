@@ -226,5 +226,11 @@
 <ul>
   <li><code>SampleTileInfo.ExpectedX</code> and <code>ExpectedY</code>: remain canonical <code>int</code> processed-source pixel coordinates; alignment fallback now assigns integer row/column values instead of double literals.</li>
 </ul>
+<h2>Tab 2 publication validation variables</h2>
+<ul>
+  <li><code>manifestPathInTemp</code>: temporary manifest file written before publication with JSON/schema validation only because canonical <code>ExpectedPath</code> points to the final run directory.</li>
+  <li><code>ValidateTileFilesInTemp</code>: verifies every generated tile exists in the current <code>.creating_&lt;runId&gt;</code> directory before publication.</li>
+  <li><code>finalValidation</code>: readback validation after <code>Directory.Move</code>, when final <code>ExpectedPath</code> files exist.</li>
+</ul>
 </body>
 </html>

@@ -55,11 +55,15 @@ namespace GerberViewer.Stitching.Imaging
                 }
                 WriteConfig(Path.Combine(temp, "sample_config.json"), run.ConfigSnapshot);
                 var manifest = BuildManifest(run, final);
+                ValidateTileFilesInTemp(run, temp);
                 var manifestPathInTemp = Path.Combine(temp, "sample_manifest.json");
-                SampleManifestSerializer.WriteValidated(manifestPathInTemp, manifest, true);
+                SampleManifestSerializer.WriteValidated(manifestPathInTemp, manifest, false);
                 if (Directory.Exists(final)) throw new IOException("Final run directory already exists: " + final);
                 Directory.Move(temp, final);
-                return new SampleCropResult { OutputDirectory = final, ManifestPath = Path.Combine(final, "sample_manifest.json"), Completed = true };
+                var manifestPath = Path.Combine(final, "sample_manifest.json");
+                var finalValidation = SampleManifestValidator.Validate(SampleManifestSerializer.Read(manifestPath), true);
+                if (!finalValidation.IsValid) throw new InvalidOperationException("Published manifest validation failed: " + string.Join(Environment.NewLine, finalValidation.Errors));
+                return new SampleCropResult { OutputDirectory = final, ManifestPath = manifestPath, Completed = true };
             }
             catch
             {
@@ -80,6 +84,16 @@ namespace GerberViewer.Stitching.Imaging
             HObject read = null;
             try { HOperatorSet.ReadImage(out read, path); }
             finally { if (read != null && read.IsInitialized()) read.Dispose(); }
+        }
+
+        private static void ValidateTileFilesInTemp(PreparedSampleRun run, string tempRoot)
+        {
+            foreach (var tile in run.TilesByOrder)
+            {
+                var fileName = FormatName(run.ConfigSnapshot.TileNamePattern, tile.Row, tile.Column, tile.OrderIndex) + ExtensionFor(run.ConfigSnapshot.OutputFormat);
+                var path = Path.Combine(tempRoot, "tiles", fileName);
+                if (!File.Exists(path)) throw new FileNotFoundException("Generated tile is missing before publication: " + path, path);
+            }
         }
 
         private static SampleManifest BuildManifest(PreparedSampleRun run, string finalRoot)
