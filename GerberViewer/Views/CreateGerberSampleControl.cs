@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using HalconDotNet;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
 using GerberViewer.Stitching.Configuration;
 using GerberViewer.Stitching.Imaging;
-using GerberViewer.Stitching.Utils;
 using GerberViewer.Workflow.Models;
 
 namespace GerberViewer.Views
@@ -18,7 +18,8 @@ namespace GerberViewer.Views
         private readonly SampleConfigStore _configStore = new SampleConfigStore();
         private readonly Dictionary<int, SampleTileState> _tileStates = new Dictionary<int, SampleTileState>();
         private CancellationTokenSource _createSampleCts;
-        private Bitmap _sampleSource;
+        private HObject _sampleSourceImage;
+        private Size _sampleSourceSize;
         private SampleGridLayout _currentLayout;
         public WorkflowContext WorkflowContext { get; set; }
 
@@ -44,7 +45,8 @@ namespace GerberViewer.Views
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 try
                 {
-                    var decoded = ImageRead.ReadBitmap(dlg.FileName);
+                    HObject decoded;
+                    HOperatorSet.ReadImage(out decoded, dlg.FileName);
                     ReplaceSampleImage(decoded, dlg.FileName);
                     CommitWorkflowContext();
                     RebuildGridOverlay();
@@ -62,9 +64,9 @@ namespace GerberViewer.Views
                 var loaded = _configStore.LoadOrCreateDefault();
                 if (!string.IsNullOrWhiteSpace(_sampleConfig.SourceRasterPath) && string.IsNullOrWhiteSpace(loaded.SourceRasterPath)) loaded.SourceRasterPath = _sampleConfig.SourceRasterPath;
                 CommitConfig(loaded, "Config loaded: " + _configStore.ConfigPath);
-                if (_sampleSource != null) RebuildGridOverlay();
+                if (_sampleSourceImage != null) RebuildGridOverlay();
             }
-            catch (InvalidDataException ex) { CommitConfig(_configStore.Load(), "Warning: invalid config replaced. " + ex.Message); if (_sampleSource != null) RebuildGridOverlay(); }
+            catch (InvalidDataException ex) { CommitConfig(_configStore.Load(), "Warning: invalid config replaced. " + ex.Message); if (_sampleSourceImage != null) RebuildGridOverlay(); }
             catch (Exception ex) { lblCreateSampleStatus.Text = "Load Config failed"; MessageBox.Show(this, ex.ToString(), "Load Config failed"); }
         }
 
@@ -73,11 +75,11 @@ namespace GerberViewer.Views
             try
             {
                 sampleConfigGrid.Refresh();
-                var validation = GerberSampleConfigValidator.Validate(_sampleConfig, _sampleSource == null ? Size.Empty : _sampleSource.Size);
+                var validation = GerberSampleConfigValidator.Validate(_sampleConfig, _sampleSourceImage == null ? Size.Empty : _sampleSourceSize);
                 if (!validation.IsValid) { MessageBox.Show(this, string.Join(Environment.NewLine, validation.Errors), "Config validation failed"); return; }
                 _configStore.Save(_sampleConfig);
                 CommitConfig(_configStore.Load(), "Config saved: " + _configStore.ConfigPath);
-                if (_sampleSource != null) RebuildGridOverlay();
+                if (_sampleSourceImage != null) RebuildGridOverlay();
             }
             catch (Exception ex) { lblCreateSampleStatus.Text = "Save Config failed"; MessageBox.Show(this, ex.ToString(), "Save Config failed"); }
         }
@@ -117,41 +119,59 @@ namespace GerberViewer.Views
             WorkflowContext.SampleConfig.SourceRasterPath = _sampleConfig.SourceRasterPath;
             WorkflowContext.NotifyChanged();
         }
-        private void ReplaceSampleImage(Bitmap decoded, string path)
+        private void ReplaceSampleImage(HObject decoded, string path)
         {
-            var old = _sampleSource;
-            _sampleSource = decoded;
+            if (decoded == null || !decoded.IsInitialized()) throw new InvalidOperationException("HALCON did not return a valid sample image: " + path);
+            HObject old = _sampleSourceImage;
+            _sampleSourceImage = decoded;
+            HTuple width = null;
+            HTuple height = null;
+            try
+            {
+                HOperatorSet.GetImageSize(_sampleSourceImage, out width, out height);
+                _sampleSourceSize = new Size(width.I, height.I);
+            }
+            finally
+            {
+                if (width != null) width.Dispose();
+                if (height != null) height.Dispose();
+            }
             _sampleConfig.SourceRasterPath = path;
             txtSamplePath.Text = path;
-            if (old != null) old.Dispose();
-            sampleWindow.SetSourceBitmap((Bitmap)_sampleSource.Clone(), true);
+            if (old != null && old.IsInitialized()) old.Dispose();
+            sampleWindow.SetSourceImage(_sampleSourceImage, true);
         }
         private void RebuildGridOverlay()
         {
-            var validation = GerberSampleConfigValidator.Validate(_sampleConfig, _sampleSource.Size);
+            var validation = GerberSampleConfigValidator.Validate(_sampleConfig, _sampleSourceSize);
             if (!validation.IsValid) throw new InvalidOperationException(string.Join(Environment.NewLine, validation.Errors));
-            _currentLayout = SampleGeometryCalculator.Calculate(_sampleSource.Width, _sampleSource.Height, _sampleConfig);
+            _currentLayout = SampleGeometryCalculator.Calculate(_sampleSourceSize.Width, _sampleSourceSize.Height, _sampleConfig);
             _tileStates.Clear(); foreach (var t in _currentLayout.Tiles) _tileStates[t.OrderIndex] = SampleTileState.Pending;
             RenderGridOverlay();
         }
         private void RenderGridOverlay()
         {
-            if (_sampleSource == null) return;
-            var bmp = (Bitmap)_sampleSource.Clone();
-            using (var g = Graphics.FromImage(bmp))
-            using (var font = new Font(FontFamily.GenericSansSerif, Math.Max(10, Math.Min(24, bmp.Width / 80))))
-            using (var red = new Pen(Color.Red, 2)) using (var green = new Pen(Color.LimeGreen, 2)) using (var yellow = new Pen(Color.Gold, 2))
+            if (_sampleSourceImage == null || !_sampleSourceImage.IsInitialized()) return;
+            if (_currentLayout == null)
             {
-                if (_currentLayout != null) foreach (var tile in _currentLayout.Tiles.OrderBy(t => t.OrderIndex))
-                {
-                    var state = _tileStates.ContainsKey(tile.OrderIndex) ? _tileStates[tile.OrderIndex] : SampleTileState.Pending;
-                    var pen = state == SampleTileState.Completed ? green : state == SampleTileState.Processing ? yellow : red;
-                    g.DrawRectangle(pen, tile.Rectangle);
-                    g.DrawString(tile.OrderIndex.ToString(), font, Brushes.Red, tile.Rectangle.Left + 3, tile.Rectangle.Top + 3);
-                }
+                sampleWindow.SetSourceImage(_sampleSourceImage, false);
+                return;
             }
-            sampleWindow.SetSourceBitmap(bmp, false);
+            var overlays = _currentLayout.Tiles.OrderBy(t => t.OrderIndex).Select(tile =>
+            {
+                var state = _tileStates.ContainsKey(tile.OrderIndex) ? _tileStates[tile.OrderIndex] : SampleTileState.Pending;
+                var color = state == SampleTileState.Completed ? "green" : state == SampleTileState.Processing ? "yellow" : "red";
+                return Tuple.Create(tile.Rectangle, color, tile.OrderIndex.ToString());
+            }).ToList();
+            sampleWindow.RenderImageOverlay(overlays);
         }
+        private void DisposeSampleSource()
+        {
+            if (_sampleSourceImage != null && _sampleSourceImage.IsInitialized()) _sampleSourceImage.Dispose();
+            _sampleSourceImage = null;
+            _sampleSourceSize = Size.Empty;
+        }
+
         private void SetRunUiState(bool running)
         {
             btnOpenSample.Enabled = !running; btnLoadSampleConfig.Enabled = !running; btnSaveConfig.Enabled = !running; btnCreateSample.Enabled = !running; btnCancelCreateSample.Enabled = running;

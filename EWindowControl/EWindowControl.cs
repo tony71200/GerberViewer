@@ -742,6 +742,64 @@ namespace EWindowControl
         }
 
 
+
+        /// <summary>
+        /// Set the current source HALCON image. The control owns an internal copy so callers may dispose their HObject after this call.
+        /// </summary>
+        public void SetSourceImage(HObject image, bool fit)
+        {
+            if (image == null || !image.IsInitialized())
+            {
+                ClearImage();
+                return;
+            }
+
+            HObject copied = null;
+            HOperatorSet.CopyImage(image, out copied);
+            Bitmap oldBitmap = sourceBitmap;
+            HObject oldSource = ho_Source;
+            sourceBitmap = null;
+            ho_Source = null;
+            if (oldBitmap != null) oldBitmap.Dispose();
+            if (oldSource != null && oldSource.IsInitialized()) oldSource.Dispose();
+
+            SourceHobject = copied;
+            SetShowImage(true);
+            ShowSourceImageAndROI();
+            if (fit) FitImage();
+        }
+
+        /// <summary>
+        /// Render image-coordinate rectangle overlays and optional labels over the current source image.
+        /// </summary>
+        public void RenderImageOverlay(IEnumerable<Tuple<Rectangle, string, string>> overlays)
+        {
+            ShowSourceImageAndROI();
+            if (overlays == null) return;
+            foreach (var overlay in overlays)
+            {
+                if (overlay == null) continue;
+                var rect = overlay.Item1;
+                var color = string.IsNullOrWhiteSpace(overlay.Item2) ? "red" : overlay.Item2;
+                hWindow.SetColor(color);
+                hWindow.SetLineWidth(2);
+                HObject region = null;
+                try
+                {
+                    HOperatorSet.GenRectangle1(out region, rect.Top, rect.Left, rect.Bottom, rect.Right);
+                    hWindow.DispObj(region);
+                    if (!string.IsNullOrWhiteSpace(overlay.Item3))
+                    {
+                        HOperatorSet.DispText(hWindow, overlay.Item3, "image", rect.Top + 3, rect.Left + 3, color, "box", "false");
+                    }
+                }
+                finally
+                {
+                    if (region != null && region.IsInitialized()) region.Dispose();
+                }
+            }
+        }
+
         /// <summary>
         /// enable/disable double-click image auto-fit image function
         /// </summary>

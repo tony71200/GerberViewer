@@ -12,3 +12,6 @@
 | `GerberStitching.Core/GerberStitching.Core.csproj` | Compile items | Include new services | New files not compiled | New config store/path and geometry files included. |
 | `Log.html` | Tab 2 rows | Update program log | Did not mention this pass | Documents config/store/UI/display/grid changes. |
 | `Params.html` | Tab 2/Core rows | Update parameter docs | Listed old Load/Create behavior | Documents fixed config path, Save button, decoded sample image, and tile state. |
+
+| `EWindowControl/EWindowControl.cs` | `SetSourceImage`, `RenderImageOverlay` | Support large TIFF/BigTIFF preview | Tab 2 had to convert selected rasters through `Bitmap` | Viewer accepts HALCON `HObject` source and draws overlays in image coordinates. |
+| `GerberViewer/Views/CreateGerberSampleControl.cs` | `btnOpenSample_Click`, `ReplaceSampleImage`, `RenderGridOverlay` | Use HALCON input path | `ImageRead.ReadBitmap` failed on large TIFF with `Parameter is not valid` | `HOperatorSet.ReadImage` loads sample, `GetImageSize` drives geometry, overlays render without cloning a huge bitmap. |

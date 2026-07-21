@@ -34,5 +34,8 @@
 <tr><td><code>GerberStitching.Core/Imaging/SampleTileGenerator.cs</code></td><td><code>Generate</code></td><td>Replaced empty marker-write catch with contextual exception reporting.</td><td>Prevents swallowed exceptions during failed/cancelled sample generation.</td></tr>
 
 <tr><td><code>GerberViewer/Views/CreateGerberSampleControl.cs</code></td><td><code>CommitWorkflowContext</code></td><td>Mapped Tab 2 <code>GerberSampleConfig.SourceRasterPath</code> into the existing workflow <code>SampleGerberConfig</code> instead of assigning incompatible config types.</td><td>Fixes CS0029 while preserving the shared WorkflowContext contract used by other tabs.</td></tr>
+
+<tr><td><code>EWindowControl/EWindowControl.cs</code></td><td><code>SetSourceImage</code>, <code>RenderImageOverlay</code></td><td>Added HALCON-image display ownership and image-coordinate overlay rendering APIs for large TIFF/BigTIFF samples.</td><td>Avoids loading large sample rasters through <code>System.Drawing.Bitmap</code> for Tab 2 preview and fixes TIFF decode failures from GDI+.</td></tr>
+<tr><td><code>GerberViewer/Views/CreateGerberSampleControl.cs</code></td><td><code>btnOpenSample_Click</code>, <code>ReplaceSampleImage</code>, <code>RenderGridOverlay</code></td><td>Changed Tab 2 sample loading from <code>ImageRead.ReadBitmap</code> to <code>HOperatorSet.ReadImage</code>, stores <code>HObject</code> plus HALCON dimensions, and renders overlays through <code>EWindowControl.RenderImageOverlay</code>.</td><td>Supports large TIFF/BigTIFF input without the <code>Bitmap..ctor</code> parameter error and avoids rasterizing the overlay into a huge bitmap.</td></tr>
 </tbody></table>
 </body></html>

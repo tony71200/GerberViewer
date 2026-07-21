@@ -874,7 +874,7 @@ Tab 2 chỉ được xem là hoàn thành khi:
 - [x] Chạy lần đầu tự tạo config.
 - [x] Load Config dùng đường dẫn cố định.
 - [x] Save Config dùng cùng đường dẫn.
-- [x] TIFF hiển thị trên `sampleWindow`.
+- [x] TIFF/BigTIFF hiển thị trên `sampleWindow` bằng HALCON `ReadImage`.
 - [x] Load ảnh lập tức vẽ grid theo config.
 - [x] Tất cả tile Pending có viền đỏ.
 - [x] Mỗi tile có OrderIndex đúng.
@@ -884,6 +884,6 @@ Tab 2 chỉ được xem là hoàn thành khi:
 - [x] UI không freeze.
 - [x] Không có cross-thread exception.
 - [x] Sửa lỗi build CS0029 do gán nhầm <code>GerberSampleConfig</code> sang <code>SampleGerberConfig</code>.
-- [ ] Không leak hoặc lock ảnh.
+- [x] Không leak hoặc lock ảnh trong flow preview Tab 2: source HALCON cũ được dispose khi thay ảnh/Dispose control.
 - [ ] Build x64 Debug và Release thành công. _(Blocked in this container: no msbuild/dotnet/xbuild/mcs installed.)_
 - [x] Báo cáo task và test được tạo đầy đủ.

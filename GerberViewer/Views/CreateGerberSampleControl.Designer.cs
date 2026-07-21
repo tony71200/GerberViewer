@@ -3,7 +3,7 @@ namespace GerberViewer.Views
     partial class CreateGerberSampleControl
     {
         private System.ComponentModel.IContainer components = null;
-        protected override void Dispose(bool disposing) { if (disposing && (components != null)) components.Dispose(); base.Dispose(disposing); }
+        protected override void Dispose(bool disposing) { if (disposing) { DisposeSampleSource(); if (components != null) components.Dispose(); } base.Dispose(disposing); }
         private void InitializeComponent()
         {
             this.commandLayout = new System.Windows.Forms.TableLayoutPanel();

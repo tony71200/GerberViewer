@@ -17,3 +17,4 @@
 - PNG/BMP/TIFF visual checks in `sampleWindow`.
 - HALCON runtime checks.
 - x64 Debug/Release builds.
+| `rg -n "ImageRead|ReadBitmap|SetSourceBitmap|HOperatorSet.ReadImage|SetSourceImage|RenderImageOverlay" GerberViewer/Views/CreateGerberSampleControl.cs EWindowControl/EWindowControl.cs` | Pass | Confirmed Tab 2 preview path now uses HALCON image loading/display APIs instead of GDI+ bitmap loading. |
