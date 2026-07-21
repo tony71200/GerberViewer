@@ -222,5 +222,9 @@
 <ul>
   <li><code>ConfigGerberSampleConfig</code>: alias for <code>GerberViewer.Stitching.Configuration.GerberSampleConfig</code> inside <code>SampleTileGenerator</code>, used when serializing <code>sample_config.json</code> to avoid ambiguity with the legacy workflow model config.</li>
 </ul>
+<h2>Tab 2 manifest coordinate compile fix</h2>
+<ul>
+  <li><code>SampleTileInfo.ExpectedX</code> and <code>ExpectedY</code>: remain canonical <code>int</code> processed-source pixel coordinates; alignment fallback now assigns integer row/column values instead of double literals.</li>
+</ul>
 </body>
 </html>
