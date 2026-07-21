@@ -135,13 +135,31 @@
     <li><code>namespace GerberViewer.Stitching.Models</code>: namespace thống nhất cho workflow/config/report models.</li>
     <li><code>PoseSource</code>: nguồn pose gồm <code>SampleAlignment</code>, <code>NeighborAlignment</code>, <code>AnchorAdjusted</code>, <code>Interpolated</code>, <code>ExpectedGridOffset</code>, <code>Manual</code>, <code>Excluded</code>, <code>Failed</code>.</li>
     <li><code>GerberSampleConfig</code>: cấu hình sample gồm <code>Rows</code>, <code>Columns</code>, <code>TileWidth</code>, <code>TileHeight</code>, <code>StartOrder</code>.</li>
-    <li><code>AlignStitchConfig</code>: cấu hình align/stitch gồm <code>MinOverlapRatio</code>, <code>MaxAbsRotationDeg</code>, <code>EnforceRobotDirection</code>.</li>
+    <li><code>AlignStitchConfig</code>: cấu hình align/stitch gồm <code>MinOverlapRatio</code>, <code>MaxAbsRotationDeg</code>, <code>EnforceRobotDirection</code>, <code>AllowNccOnlyAcceptance</code>, <code>PreviewUpdateInterval</code>, <code>MaxPreviewMegapixels</code>, <code>TiffMode</code>, <code>OutputPath</code>.</li>
     <li><code>GerberWorkflowConfig</code>: cấu hình workflow tổng hợp gồm <code>Sample</code> và <code>Alignment</code>.</li>
     <li><code>SampleManifest</code>: manifest sample gồm <code>RootDirectory</code>, <code>Tiles</code>, <code>CreatedUtc</code>.</li>
     <li><code>SampleTileInfo</code>: tile expected gồm <code>Row</code>, <code>Column</code>, <code>ExpectedPath</code>, <code>ExpectedX</code>, <code>ExpectedY</code>.</li>
     <li><code>CapturedImageInfo</code>: ảnh capture gồm <code>FilePath</code>, <code>Row</code>, <code>Column</code>, <code>OrderIndex</code>, <code>Width</code>, <code>Height</code>, <code>NaturalSortKey</code>, <code>SourceMetadata</code>, <code>RobotX</code>, <code>RobotY</code>, <code>CapturedUtc</code>, <code>State</code>.</li>
     <li><code>StitchImagePose</code>: pose stitch gồm <code>Row</code>, <code>Column</code>, <code>X</code>, <code>Y</code>, <code>RotationDeg</code>, <code>Source</code>.</li>
-    <li><code>ProcessingReport</code>: report xử lý gồm <code>Succeeded</code>, <code>Messages</code>, <code>Poses</code>.</li>
+    <li><code>ProcessingReport</code>: report xử lý gồm <code>Succeeded</code>, input manifest/config, <code>Messages</code>, <code>Warnings</code>, từng image pose source/scores/fallback/manual/excluded/rejection, <code>Poses</code> và <code>FinalOutputPath</code>.</li>
+    <li><code>AlignStitchWorkflowService.RunAsync</code>: orchestrator chạy bằng <code>Task.Run</code>, nhận <code>AlignStitchConfig</code>, <code>SampleManifest</code>, captured list, <code>IProgress&lt;WorkflowProgress&gt;</code>, <code>CancellationToken</code>; direct sample alignment rồi recovery neighbor/anchor/interpolation/expected-grid/manual.</li>
+    <li><code>TiffMode</code>: enum <code>Auto</code>, <code>StandardTiff</code>, <code>BigTiff</code>; output stitch chỉ dùng đuôi <code>.tif</code>/<code>.tiff</code> và auto chọn BigTIFF khi estimate vượt giới hạn standard TIFF.</li>
+    <li><code>WorkflowProgress</code>, <code>AlignStitchWorkflowResult</code>, <code>TileWorkflowState</code>, <code>ManualAlignmentRequest</code>, <code>ManualAlignmentResult</code>, <code>ProcessingTileReport</code>: model workflow/report/manual alignment.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/Stitching</h2>
+  <ul>
+    <li><code>GlobalTransformStitcher.StitchFromGlobalTransforms</code>: tính transformed bounds, canvas translation/scale, preview megapixel guard, warp theo global pose, mask-style alpha composition, optional blending flag, preview theo <code>PreviewUpdateInterval</code>, lưu full-resolution độc lập preview scale.</li>
+    <li><code>StitchFromGlobalTransformsOptions</code> và <code>StitchPreview</code>: cấu hình preview/TIFF/output và payload cập nhật preview.</li>
+  </ul>
+  <h2>GerberViewer/Stitching</h2>
+  <ul>
+    <li><code>PathCanvasControl.SetData(ArrangeBatchResult arrange, TraversalGraph traversal)</code>: nhận kết quả arrange và traversal graph hiện có, tránh kiểu cũ <code>TraversalBatchResult</code> không tồn tại.</li>
+  </ul>
+  <h2>GerberViewer/Workflow và GerberViewer/Views</h2>
+  <ul>
+    <li><code>HalconRuntimeValidator.Validate</code>: blocking startup validator trước <code>Application.Run</code>, kiểm tra x64, managed/native HALCON DLL resolution, version, license/operator/NCC smoke-test diagnostics; fail thì ghi <code>halcon-startup.log</code>, hiện dialog và exit, không fallback OpenCV.</li>
+    <li><code>ManualAlignmentDialog</code>: dialog manual alignment với sample tile view, captured view, alpha overlay/difference control, drag/numeric/keyboard nudge X/Y, rotation, scale disabled mặc định, reset expected-grid, reset best automatic candidate, diagnostics/rejection reasons và nút <code>Accept</code>/<code>Skip</code>/<code>Cancel Run</code>.</li>
   </ul>
 
   <h2>GerberStitching.Core/Utils</h2>
