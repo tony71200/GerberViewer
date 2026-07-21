@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>GerberViewer Params</title>
+</head>
+<body>
+  <h1>GerberViewer Params</h1>
+  <h2>MainForm</h2>
+  <ul>
+    <li><code>mainTabControl</code>: TabControl chính chứa ba tab theo thứ tự Read Gerber, Create Gerber Sample, Align and Stitching.</li>
+    <li><code>_workflowContext</code>: WorkflowContext dùng chung để trao đổi state giữa các tab mà không truy cập private controls.</li>
+  </ul>
+  <h2>Views/ReadGerberControl</h2>
+  <ul>
+    <li><code>toolStrip</code>, <code>lvLayers</code>, <code>canvas</code>, <code>statusStrip</code>: UI đọc Gerber đã tách khỏi MainForm.</li>
+    <li><code>tsbOpen_Click</code>, <code>ReadGerberControl_DragEnter</code>, <code>ReadGerberControl_DragDrop</code>: mở file và drag/drop Gerber.</li>
+    <li><code>tsbRender_Click</code>, <code>tsbFit_Click</code>, <code>RenderPreviewAsync</code>: refresh preview, fit view, zoom/pan/fit qua GerberCanvas.</li>
+    <li><code>tsbExportSelected_Click</code>, <code>tsbExportCombined_Click</code>, <code>RunExport</code>: export layer và combined PNG.</li>
+    <li><code>WorkflowContext</code>: optional shared workflow state reference.</li>
+  </ul>
+  <h2>Views/CreateGerberSampleControl</h2>
+  <ul>
+    <li><code>btnOpenSample</code>: chọn external raster bằng Open Sample.</li>
+    <li><code>txtSamplePath</code>: textbox read-only hiển thị đường dẫn raster sample.</li>
+    <li><code>btnLoadSampleConfig</code>: nạp/refresh cấu hình sample vào typed property grid.</li>
+    <li><code>btnCreateSample</code>: chạy tạo tile sample async qua <code>SampleTileGenerator.GenerateAsync</code>.</li>
+    <li><code>btnCancelCreateSample</code>: cancel crop bằng <code>CancellationTokenSource</code>.</li>
+    <li><code>prgCreateSample</code>: progress bar nhận <code>SampleCropProgress</code>.</li>
+    <li><code>lblCreateSampleStatus</code>: trạng thái chọn file/tạo tile/cancel/fail.</li>
+    <li><code>splitContainer</code>: layout chính gồm preview bên trái và config bên phải.</li>
+    <li><code>sampleWindow</code>: <code>EWindowControl</code> preview bên trái; worker thread không truy cập trực tiếp control này.</li>
+    <li><code>sampleConfigGrid</code>: typed <code>PropertyGrid</code> chỉnh <code>GerberSampleConfig</code>.</li>
+    <li><code>btnOpenSample_Click</code>: cập nhật <code>WorkflowContext.SampleRasterPath</code> và <code>WorkflowContext.SampleConfig.SourceRasterPath</code>; version 1 không consume render hiện tại từ tab Read Gerber.</li>
+  </ul>
+  <h2>Views/AlignStitchingControl</h2>
+  <ul>
+    <li><code>WorkflowContext</code>: subscribe event Changed để đọc typed shared state.</li>
+    <li><code>RefreshContextLabels</code>: hiển thị sample raster và last stitched output path từ WorkflowContext.</li>
+    <li><code>btnOpenImageFolder</code>, <code>txtImageFolder</code>, <code>lstCapturedImages</code>, <code>lblImageCount</code>: UI chọn folder ảnh capture, list ảnh sau khi load và count expected/actual.</li>
+    <li><code>btnRunAlignStitch</code>, <code>btnCancelAlignStitch</code>, <code>prgAlignStitch</code>: UI chạy/cancel align stitch và progress.</li>
+    <li><code>resultTabControl</code>: gồm tab <code>Order View</code> và <code>Stitched Image</code>; Order View nhúng <code>orderPathCanvas</code>, Stitched Image nhúng <code>picStitchedImage</code>.</li>
+    <li><code>LoadCapturedImages</code>: gọi <code>CapturedImageLoader.Load</code>, block execution khi manifest invalid/missing, count mismatch, duplicate key, unreadable image hoặc dimensions không hợp lệ.</li>
+    <li><code>ResolveManifestPath</code>: ưu tiên <code>WorkflowContext.ManifestPath</code>, sau đó <code>AlignStitchConfig.InputManifestPath</code>, cuối cùng <code>sample_manifest.json</code> trong folder ảnh.</li>
+  </ul>
+  <h2>Workflow/Models/WorkflowContext</h2>
+  <ul>
+    <li><code>SampleRasterPath</code>: đường dẫn external raster sample.</li>
+    <li><code>SampleConfig</code>: cấu hình tạo Gerber sample.</li>
+    <li><code>ManifestPath</code>: đường dẫn manifest workflow.</li>
+    <li><code>OutputDirectory</code>: thư mục output chung.</li>
+    <li><code>AlignStitchConfig</code>: cấu hình align/stitch.</li>
+    <li><code>LastStitchedOutputPath</code>: output stitch gần nhất.</li>
+    <li><code>Changed</code>/<code>NotifyChanged</code>: typed event thông báo state thay đổi.</li>
+  </ul>
+
+
+  <h2>GerberStitching.Core/Alignment</h2>
+  <ul>
+    <li><code>ISampleAligner</code>: interface align sample tile, trả <code>SampleAlignmentResult</code>; direction transform chuẩn là <code>Captured → Sample</code>.</li>
+    <li><code>SampleAlignmentContext</code>: input alignment gồm <code>SampleTileId</code>, <code>SampleImage</code>, <code>CapturedImage</code>, <code>ExpectedCapturedToSampleTransform</code>, <code>InitialCapturedToSampleTransform</code> và <code>Options</code>; ảnh gốc không bị overwrite.</li>
+    <li><code>SampleAlignmentResult</code>: result gồm <code>Success</code>, <code>CapturedToSampleTransform</code> 3x3 <code>CV_64F</code>, <code>NccScore</code>, <code>EccCorrelation</code>, rotation/translation/scale, <code>OverlapRatio</code>, <code>Method</code>, <code>PreprocessingVariant</code>, <code>RejectionReason</code>, <code>Warning</code> và optional <code>DiagnosticImages</code>.</li>
+    <li><code>SampleAlignmentOptions</code>: thresholds/config gồm <code>NccMinScore</code>, <code>EccMinCorrelation</code>, <code>MinOverlapRatio</code>, <code>MaxTranslationPixels</code>, <code>MaxAbsRotationDeg</code>, <code>MinScale</code>, <code>MaxScale</code>, <code>AllowNccOnlyAcceptance</code>, <code>AllowEccFromExpectedWhenNccFails</code>, <code>PyramidLevels</code>, <code>EccIterations</code>, <code>EccEpsilon</code> và <code>Preprocessing</code>.</li>
+    <li><code>PreprocessingOptions</code>: modality-aware pipeline gồm grayscale conversion, <code>ContrastNormalization</code>, polarity sample/captured (<code>PolarityMode</code>), threshold fixed/Otsu/adaptive (<code>ThresholdMode</code>), Sobel/Canny/HALCON-equivalent edges (<code>EdgePreparationMode</code>), Gerber content mask, normalized size và diagnostic image flag.</li>
+    <li><code>ModalityAwarePreprocessor.Preprocess</code>: tạo bản processed mới cho sample/captured, không mutate bitmap input; xuất <code>PreprocessedAlignmentImages</code> disposable.</li>
+    <li><code>HalconNccSampleAligner</code>: NCC coarse aligner với hook/cache per <code>SampleTileId</code> tương ứng <code>create_ncc_model</code>/<code>find_ncc_model</code>, convert row/column/angle sang homography <code>Captured → Sample</code>, dispose cache deterministic và reject khi score nhỏ hơn <code>NccMinScore</code>.</li>
+    <li><code>PyramidEccSampleAligner</code>: ECC refinement path chuẩn bị ảnh single-channel float, dùng expected/NCC init, validate correlation/translation/rotation/scale/overlap/finiteness và giữ transform 3x3 <code>CV_64F</code>.</li>
+    <li><code>NccThenPyramidEccSampleAligner</code>: hybrid mặc định chạy NCC rồi ECC, accept khi cả hai pass, accept NCC-only khi geometry/threshold pass với warning <code>NccOnlyAccepted</code>, và optionally chạy ECC từ expected-grid init nếu NCC fail.</li>
+    <li><code>NeighborMatchAcceptance.IsAccepted</code>: helper migration cho neighbor matcher, success chỉ khi <code>pairResult?.Eval?.IsMatch == true</code>; không accept chỉ vì <code>Eval != null</code>.</li>
+    <li><code>SampleAlignmentMethod</code>, <code>PolarityMode</code>, <code>ThresholdMode</code>, <code>EdgePreparationMode</code>, <code>ContrastNormalizationMode</code>: enums cho method/preprocessing variant.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/Arrangement</h2>
+  <ul>
+    <li><code>NaturalSortService</code>: service natural-sort filename, expose <code>SupportedExtensions</code> tối thiểu <code>.bmp</code>, <code>.png</code>, <code>.jpg</code>, <code>.jpeg</code>, <code>.tif</code>, <code>.tiff</code>, <code>GetNaturalKey</code>, <code>SortFiles</code>.</li>
+    <li><code>NaturalSortItem</code>: DTO gồm <code>FilePath</code> và <code>Key</code> để detect duplicate natural-sort keys.</li>
+    <li><code>CapturedImageLoader</code>: enumerate supported files, natural-sort, validate readability/dimensions, validate <code>sample_manifest.json</code>, block count mismatch/duplicates, map ảnh K sang sample tile K, assign <code>OrderIndex</code>.</li>
+    <li><code>CapturedImageLoadResult</code>: result gồm <code>Succeeded</code>, <code>Errors</code>, <code>Images</code>, <code>ExpectedTileCount</code>, <code>ExpectedImageWidth</code>, <code>ExpectedImageHeight</code>.</li>
+  </ul>
+
+  <h2>GerberViewer/Stitching/PathCanvasControl</h2>
+  <ul>
+    <li><code>PathCanvasControl</code>: control Order View được adapt từ reference StitchingImage, namespace mới <code>GerberViewer.Stitching.DesignControls</code>.</li>
+    <li><code>SetCapturedImages</code>: render các node theo row/column và order index.</li>
+    <li><code>SetData</code>: overload tương thích arrange/traversal để reuse với graph stitching.</li>
+    <li><code>OrderNodeState</code>: state hiển thị gồm <code>Pending</code>, <code>Processing</code>, <code>SampleAlignOk</code>, <code>NeighborAlignOk</code>, <code>Interpolated</code>, <code>ExpectedOffset</code>, <code>Failed</code>, <code>Excluded</code>.</li>
+  </ul>
+
+  <h2>Solution/Project Configuration</h2>
+  <ul>
+    <li><code>GerberStitching.Core</code>: project class library mới, target <code>.NET Framework 4.8</code>, assembly <code>GerberStitching.Core</code>, root namespace <code>GerberViewer.Stitching</code>.</li>
+    <li><code>GerberViewer.sln</code>: thêm project <code>GerberStitching.Core\GerberStitching.Core.csproj</code> với mappings <code>Debug|Any CPU</code>, <code>Debug|x64</code>, <code>Release|Any CPU</code>, <code>Release|x64</code>.</li>
+    <li><code>PlatformTarget</code>: các configuration của <code>GerberStitching.Core</code> set <code>x64</code> để thống nhất với OpenCV/HALCON native runtime.</li>
+    <li><code>Prefer32Bit</code>: các configuration x64 liên quan native interop trong <code>GerberViewer</code>, <code>GerberEngine</code>, <code>EWindowControl</code> và <code>GerberStitching.Core</code> set <code>false</code>.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/RobotManager/Domain</h2>
+  <ul>
+    <li><code>namespace GerberViewer.Stitching.RobotManager</code>: namespace thống nhất cho domain/order/traversal; không dùng namespace legacy <code>StitchingImage.*</code>.</li>
+    <li><code>OrderMode</code>: mode traversal gồm <code>Zigzag</code>, <code>Branch</code>, <code>BranchDown</code>.</li>
+    <li><code>StartCorner</code>: corner xuất phát gồm <code>TopLeft</code>, <code>TopRight</code>, <code>BottomLeft</code>, <code>BottomRight</code>.</li>
+    <li><code>RobotMovement</code>: hướng robot gồm <code>Left</code>, <code>Right</code>, <code>Up</code>, <code>Down</code>.</li>
+    <li><code>StartOrder</code>: version 1 chỉ có bốn preset <code>TopLeftRight</code>, <code>TopLeftDown</code>, <code>BottomRightLeft</code>, <code>BottomRightUp</code>.</li>
+    <li><code>StartOrderResolution</code>: DTO chứa kết quả resolve gồm <code>StartCorner</code> và <code>RobotMovement</code>.</li>
+    <li><code>StartOrderResolver.Resolve(StartOrder order)</code>: map <code>TopLeftRight =&gt; TopLeft/Right</code>, <code>TopLeftDown =&gt; TopLeft/Down</code>, <code>BottomRightLeft =&gt; BottomRight/Left</code>, <code>BottomRightUp =&gt; BottomRight/Up</code>.</li>
+    <li><code>ImageInfo</code>: thông tin tile gồm <code>FilePath</code>, <code>GroupId</code>, <code>ImageId</code>, <code>PositionId</code>, <code>XRobot</code>, <code>YRobot</code>, <code>Row</code>, <code>Column</code>.</li>
+    <li><code>OrderOptions</code>: cấu hình traversal gồm <code>Mode</code>, <code>StartCorner</code>, <code>RobotMovement</code>, <code>NodeInterval</code>.</li>
+    <li><code>OrderOptions.FromStartOrder(StartOrder order, OrderMode mode)</code>: tạo <code>OrderOptions</code> từ preset <code>StartOrder</code>.</li>
+    <li><code>Bounds2D</code>: bounds robot/image gồm <code>MinX</code>, <code>MinY</code>, <code>MaxX</code>, <code>MaxY</code>.</li>
+    <li><code>Bounds2D.FromPoints(IEnumerable&lt;ImageInfo&gt; points)</code>: tính bounds từ tập tile.</li>
+    <li><code>NodeLinks</code>: links traversal theo <code>ImageId</code> gồm <code>HNext</code>, <code>VNext</code>, <code>Prev</code>, <code>Next</code>.</li>
+    <li><code>GridCell</code>: vị trí matrix gồm <code>Row</code>, <code>Column</code>.</li>
+    <li><code>EdgeDir</code>: hướng cạnh gồm <code>Horizontal</code>, <code>Vertical</code>.</li>
+    <li><code>PathSegment</code>: cạnh vẽ/duyệt gồm <code>FromId</code>, <code>ToId</code>, <code>FromCell</code>, <code>ToCell</code>, <code>Direction</code>.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/RobotManager/RobotArrange</h2>
+  <ul>
+    <li><code>ArrangeComponent</code>: kết quả arrange một component gồm <code>Index</code>, <code>Items</code>, <code>Matrix</code>, <code>Bounds</code>.</li>
+    <li><code>ArrangeBatchResult</code>: kết quả arrange theo group gồm <code>GroupId</code> và danh sách <code>Components</code>.</li>
+    <li><code>RobotArrange.FromPhysicalMatrix(int groupId, ImageInfo[,] physicalMatrix, OrderOptions options)</code>: ordering version 1 đọc physical matrix <code>[row,column]</code>, apply start corner để tạo matrix traversal input, không dùng legacy <code>RobotOrderer.cs</code>.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/RobotManager/TraversalGraph</h2>
+  <ul>
+    <li><code>TraversalGraph</code>: graph traversal từ matrix đã arrange, expose <code>Mode</code>, <code>Matrix</code>, <code>LinksById</code>, <code>CellById</code>, <code>PathSegments</code>.</li>
+    <li><code>TraversalGraph.Build(List&lt;List&lt;ImageInfo&gt;&gt; matrix, OrderOptions options)</code>: build graph từ physical-matrix arrangement và apply mode <code>Zigzag</code>/<code>Branch</code>/<code>BranchDown</code>.</li>
+    <li><code>BuildRows</code>: tạo horizontal row links và zigzag chain khi mode <code>Zigzag</code>.</li>
+    <li><code>BuildBranchDown</code>: tạo vertical column links và head-to-head horizontal links cho mode <code>BranchDown</code>.</li>
+    <li><code>EnumerateEdges()</code>: trả danh sách cạnh traversal dạng <code>Tuple&lt;fromId,toId,EdgeDir&gt;</code>.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/Models</h2>
+  <ul>
+    <li><code>namespace GerberViewer.Stitching.Models</code>: namespace thống nhất cho workflow/config/report models.</li>
+    <li><code>PoseSource</code>: nguồn pose gồm <code>SampleAlignment</code>, <code>NeighborAlignment</code>, <code>AnchorAdjusted</code>, <code>Interpolated</code>, <code>ExpectedGridOffset</code>, <code>Manual</code>, <code>Excluded</code>, <code>Failed</code>.</li>
+    <li><code>GerberSampleConfig</code>: cấu hình sample gồm <code>Rows</code>, <code>Columns</code>, <code>TileWidth</code>, <code>TileHeight</code>, <code>StartOrder</code>.</li>
+    <li><code>AlignStitchConfig</code>: cấu hình align/stitch gồm <code>MinOverlapRatio</code>, <code>MaxAbsRotationDeg</code>, <code>EnforceRobotDirection</code>, <code>AllowNccOnlyAcceptance</code>, <code>PreviewUpdateInterval</code>, <code>MaxPreviewMegapixels</code>, <code>TiffMode</code>, <code>OutputPath</code>.</li>
+    <li><code>GerberWorkflowConfig</code>: cấu hình workflow tổng hợp gồm <code>Sample</code> và <code>Alignment</code>.</li>
+    <li><code>SampleManifest</code>: manifest sample gồm <code>RootDirectory</code>, <code>Tiles</code>, <code>CreatedUtc</code>.</li>
+    <li><code>SampleTileInfo</code>: tile expected gồm <code>Row</code>, <code>Column</code>, <code>ExpectedPath</code>, <code>ExpectedX</code>, <code>ExpectedY</code>.</li>
+    <li><code>CapturedImageInfo</code>: ảnh capture gồm <code>FilePath</code>, <code>Row</code>, <code>Column</code>, <code>OrderIndex</code>, <code>Width</code>, <code>Height</code>, <code>NaturalSortKey</code>, <code>SourceMetadata</code>, <code>RobotX</code>, <code>RobotY</code>, <code>CapturedUtc</code>, <code>State</code>.</li>
+    <li><code>StitchImagePose</code>: pose stitch gồm <code>Row</code>, <code>Column</code>, <code>X</code>, <code>Y</code>, <code>RotationDeg</code>, <code>Source</code>.</li>
+    <li><code>ProcessingReport</code>: report xử lý gồm <code>Succeeded</code>, input manifest/config, <code>Messages</code>, <code>Warnings</code>, từng image pose source/scores/fallback/manual/excluded/rejection, <code>Poses</code> và <code>FinalOutputPath</code>.</li>
+    <li><code>AlignStitchWorkflowService.RunAsync</code>: orchestrator chạy bằng <code>Task.Run</code>, nhận <code>AlignStitchConfig</code>, <code>SampleManifest</code>, captured list, <code>IProgress&lt;WorkflowProgress&gt;</code>, <code>CancellationToken</code>; direct sample alignment rồi recovery neighbor/anchor/interpolation/expected-grid/manual.</li>
+    <li><code>TiffMode</code>: enum <code>Auto</code>, <code>StandardTiff</code>, <code>BigTiff</code>; output stitch chỉ dùng đuôi <code>.tif</code>/<code>.tiff</code> và auto chọn BigTIFF khi estimate vượt giới hạn standard TIFF.</li>
+    <li><code>WorkflowProgress</code>, <code>AlignStitchWorkflowResult</code>, <code>TileWorkflowState</code>, <code>ManualAlignmentRequest</code>, <code>ManualAlignmentResult</code>, <code>ProcessingTileReport</code>: model workflow/report/manual alignment.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/Stitching</h2>
+  <ul>
+    <li><code>GlobalTransformStitcher.StitchFromGlobalTransforms</code>: tính transformed bounds, canvas translation/scale, preview megapixel guard, warp theo global pose, mask-style alpha composition, optional blending flag, preview theo <code>PreviewUpdateInterval</code>, lưu full-resolution độc lập preview scale.</li>
+    <li><code>StitchFromGlobalTransformsOptions</code> và <code>StitchPreview</code>: cấu hình preview/TIFF/output và payload cập nhật preview.</li>
+  </ul>
+  <h2>GerberViewer/Stitching</h2>
+  <ul>
+    <li><code>PathCanvasControl.SetData(ArrangeBatchResult arrange, TraversalGraph traversal)</code>: nhận kết quả arrange và traversal graph hiện có, tránh kiểu cũ <code>TraversalBatchResult</code> không tồn tại.</li>
+  </ul>
+  <h2>GerberViewer/Workflow và GerberViewer/Views</h2>
+  <ul>
+    <li><code>HalconRuntimeValidator.Validate</code>: blocking startup validator trước <code>Application.Run</code>, kiểm tra x64, managed/native HALCON DLL resolution, version, license/operator/NCC smoke-test diagnostics; fail thì ghi <code>halcon-startup.log</code>, hiện dialog và exit, không fallback OpenCV.</li>
+    <li><code>ManualAlignmentDialog</code>: dialog manual alignment với sample tile view, captured view, alpha overlay/difference control, drag/numeric/keyboard nudge X/Y, rotation, scale disabled mặc định, reset expected-grid, reset best automatic candidate, diagnostics/rejection reasons và nút <code>Accept</code>/<code>Skip</code>/<code>Cancel Run</code>.</li>
+  </ul>
+
+  <h2>GerberStitching.Core/Utils</h2>
+  <ul>
+    <li><code>namespace GerberViewer.Stitching.Utils</code>: namespace thống nhất cho utility stitching.</li>
+    <li><code>StitchingMethod</code>: method align/stitch gồm <code>CoarseFine</code>, <code>PhaseCorrelation</code>, <code>Manual</code>.</li>
+    <li><code>StitchingConfig</code>: config utility gồm <code>Method</code>, <code>WorkMegapix</code>, <code>RoiMatchFraction</code>, <code>RoiMinPx</code>, <code>MinOverlapRatio</code>, <code>MaxAbsRotationDeg</code>, <code>EnforceRobotDirection</code>, manual offsets và <code>Clone()</code>.</li>
+    <li><code>ImageRead.ImageReadException</code>: exception khi ảnh không tồn tại hoặc đọc ảnh thất bại.</li>
+    <li><code>ImageRead.ReadBitmap(string filename)</code>: đọc ảnh bằng <code>System.Drawing.Bitmap</code> và normalize format.</li>
+    <li><code>ImageRead.Ensure24bppBgr(Bitmap src)</code>: convert/clone bitmap về <code>PixelFormat.Format24bppRgb</code>.</li>
+    <li><code>TiffBigWriter.SaveTiffGray8Async(...)</code>: ghi TIFF grayscale 8-bit từ buffer byte.</li>
+    <li><code>TiffBigWriter.SaveTiffRgb24Async(...)</code>: ghi TIFF RGB24 từ buffer byte RGB.</li>
+  </ul>
+  <h2>GerberStitching.Core/Configuration/GerberSampleConfig</h2>
+  <ul>
+    <li><code>GerberSampleConfig</code>: cấu hình tạo tile sample với defaults <code>CropOrder=Zigzag</code>, <code>StartOrder=TopLeftRight</code>, <code>InvertImage=false</code>, <code>OverlapValue=60</code>, <code>OverlapUnit=Pixel</code>, <code>PreprocessMode=None</code>, <code>KeepAspectRatio=true</code>, <code>OutputFormat=Png</code>, <code>TileNamePattern=Sample_R{row:00}_C{col:00}_O{order:000}</code>.</li>
+    <li><code>OverlapUnit</code>: enum overlap gồm <code>Pixel</code>, <code>Percent</code>.</li>
+    <li><code>SamplePreprocessMode</code>: enum preprocess gồm <code>None</code>, <code>Resize</code>, <code>FitPad</code>, <code>CenterCrop</code>.</li>
+    <li><code>SampleOutputFormat</code>: enum output gồm <code>Png</code>, <code>Bmp</code>, <code>Jpeg</code>.</li>
+    <li><code>GerberSampleConfigValidator.Validate</code>: validate <code>Rows</code>/<code>Columns</code>, pixel/percent overlap và reject non-uniform resize khi <code>KeepAspectRatio=true</code>.</li>
+  </ul>
+  <h2>GerberStitching.Core/Imaging/SampleTileGenerator</h2>
+  <ul>
+    <li><code>SampleTileGenerator.GenerateAsync</code>: chạy crop trong <code>Task.Run</code>, hỗ trợ <code>CancellationToken</code> và <code>IProgress&lt;SampleCropProgress&gt;</code>.</li>
+    <li><code>Preprocess</code>: load raster và xử lý <code>Resize</code>, <code>FitPad</code>, <code>CenterCrop</code> trong processed-source pixel coordinate space.</li>
+    <li><code>BuildTiles</code>: tạo physical matrix <code>[row,column]</code>, áp dụng <code>RobotArrange</code>/<code>TraversalGraph</code>, tính crop theo <code>OrderIndex</code>.</li>
+    <li><code>Boundaries</code>: rounding policy bằng boundary arrays với boundary đầu <code>0</code>, boundary cuối bằng kích thước processed và tile luôn trong bounds.</li>
+    <li><code>sample_manifest.json</code>: metadata source path/hash/DPI, original/processed dimensions, transform, rows/columns, overlap, crop/start order, resolved start corner/movement, inversion, timestamp, app/spec version và tiles.</li>
+    <li><code>sample_config.json</code>, <code>sample_overlay.png</code>, <code>tiles/*</code>: output bắt buộc trong <code>OutputDirectory</code>.</li>
+    <li><code>INCOMPLETE.txt</code>: marker khi cancel/fail để partial output được đánh dấu rõ ràng.</li>
+  </ul>
+</body>
+</html>

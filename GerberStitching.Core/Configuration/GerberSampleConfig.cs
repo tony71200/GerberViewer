@@ -1,0 +1,67 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using GerberViewer.Stitching.RobotManager;
+
+namespace GerberViewer.Stitching.Configuration
+{
+    public enum OverlapUnit { Pixel = 0, Percent = 1 }
+    public enum SamplePreprocessMode { None = 0, Resize = 1, FitPad = 2, CenterCrop = 3 }
+    public enum SampleOutputFormat { Png = 0, Bmp = 1, Jpeg = 2 }
+
+    public sealed class GerberSampleConfig
+    {
+        public string SourceRasterPath { get; set; }
+        public string OutputDirectory { get; set; }
+        public int Rows { get; set; } = 1;
+        public int Columns { get; set; } = 1;
+        public OrderMode CropOrder { get; set; } = OrderMode.Zigzag;
+        public StartOrder StartOrder { get; set; } = StartOrder.TopLeftRight;
+        public bool InvertImage { get; set; } = false;
+        public double OverlapValue { get; set; } = 60;
+        public OverlapUnit OverlapUnit { get; set; } = OverlapUnit.Pixel;
+        public SamplePreprocessMode PreprocessMode { get; set; } = SamplePreprocessMode.None;
+        public bool KeepAspectRatio { get; set; } = true;
+        public SampleOutputFormat OutputFormat { get; set; } = SampleOutputFormat.Png;
+        public string TileNamePattern { get; set; } = "Sample_R{row:00}_C{col:00}_O{order:000}";
+        public int ProcessedWidth { get; set; }
+        public int ProcessedHeight { get; set; }
+        public Color PadColor { get; set; } = Color.White;
+    }
+
+    public sealed class SampleConfigValidationResult
+    {
+        public List<string> Errors { get; } = new List<string>();
+        public bool IsValid { get { return Errors.Count == 0; } }
+    }
+
+    public static class GerberSampleConfigValidator
+    {
+        public static SampleConfigValidationResult Validate(GerberSampleConfig config, Size sourceSize)
+        {
+            if (config == null) throw new ArgumentNullException(nameof(config));
+            var result = new SampleConfigValidationResult();
+            if (config.Rows < 1) result.Errors.Add("Rows must be >= 1.");
+            if (config.Columns < 1) result.Errors.Add("Columns must be >= 1.");
+            if (config.OverlapUnit == OverlapUnit.Percent && (config.OverlapValue < 0 || config.OverlapValue >= 100)) result.Errors.Add("Percent overlap must satisfy 0 <= P < 100.");
+
+            var processedWidth = config.ProcessedWidth > 0 ? config.ProcessedWidth : sourceSize.Width;
+            var processedHeight = config.ProcessedHeight > 0 ? config.ProcessedHeight : sourceSize.Height;
+            if (config.KeepAspectRatio && config.PreprocessMode == SamplePreprocessMode.Resize && config.ProcessedWidth > 0 && config.ProcessedHeight > 0 && sourceSize.Width > 0 && sourceSize.Height > 0)
+            {
+                var sx = (double)config.ProcessedWidth / sourceSize.Width;
+                var sy = (double)config.ProcessedHeight / sourceSize.Height;
+                if (Math.Abs(sx - sy) > 0.0001) result.Errors.Add("Non-uniform Resize is rejected when KeepAspectRatio=true.");
+            }
+
+            if (config.Rows >= 1 && config.Columns >= 1 && processedWidth > 0 && processedHeight > 0 && config.OverlapUnit == OverlapUnit.Pixel)
+            {
+                var tileWidth = (processedWidth + Math.Max(0, config.Columns - 1) * config.OverlapValue) / config.Columns;
+                var tileHeight = (processedHeight + Math.Max(0, config.Rows - 1) * config.OverlapValue) / config.Rows;
+                if (tileWidth <= config.OverlapValue) result.Errors.Add("Pixel overlap makes tileWidth <= overlap.");
+                if (tileHeight <= config.OverlapValue) result.Errors.Add("Pixel overlap makes tileHeight <= overlap.");
+            }
+            return result;
+        }
+    }
+}
