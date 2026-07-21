@@ -25,7 +25,7 @@ namespace GerberViewer.Views
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
 
-        private const int PreviewDpi = 6000;
+        private const int PreviewDpi = 2400;
         private const int LargePrimitiveWarningThreshold = 50000;
 
         public WorkflowContext WorkflowContext { get; set; }
@@ -208,7 +208,7 @@ namespace GerberViewer.Views
 
             _rendering = true;
             lblStatus.Text = "Generating preview...";
-            RenderOptions opts = BuildOptions(false);
+            RenderOptions opts = BuildOptions(true);
 
             // Render o worker thread; Bitmap ban giao quyen so huu cho canvas sau khi xong (Spec 5.1.4)
             Task.Run(() =>

@@ -554,6 +554,35 @@ namespace EWindowControl
 
         #region public members
         /// <summary>
+        /// True when the control currently has an initialized source image.
+        /// </summary>
+        public bool HasSourceImage
+        {
+            get { return ho_Source != null && ho_Source.IsInitialized(); }
+        }
+
+        /// <summary>
+        /// Current display zoom, calculated from the visible image width and control width.
+        /// </summary>
+        public double CurrentZoom
+        {
+            get
+            {
+                if (!HasSourceImage || hSmartWindowControl1.Width <= 0) return 1d;
+                double y1, x1, y2, x2;
+                GetWinShowSize(out y1, out x1, out y2, out x2);
+                double visibleWidth = x2 - x1 + 1d;
+                if (visibleWidth <= 0d) return 1d;
+                return hSmartWindowControl1.Width / visibleWidth;
+            }
+        }
+
+        /// <summary>
+        /// Raised with the current image coordinates while the mouse moves over the image; null when no image point is available.
+        /// </summary>
+        public event EventHandler<PointF?> ImagePointMoved;
+
+        /// <summary>
         /// input HObject-format image
         /// </summary>
         public HObject SourceHobject
@@ -668,6 +697,48 @@ namespace EWindowControl
                 if (eRoiList.Count > 0)
                     ShowDrawingROI(eRoiList);
             }
+        }
+
+        /// <summary>
+        /// Clear the current source image and dispose cached bitmap resources owned by this control.
+        /// </summary>
+        public void ClearImage()
+        {
+            Bitmap oldBitmap = sourceBitmap;
+            HObject oldSource = ho_Source;
+            SourceBitmap = null;
+            sourceBitmap = null;
+            ho_Source = null;
+            if (oldBitmap != null) oldBitmap.Dispose();
+            if (oldSource != null && oldSource.IsInitialized()) oldSource.Dispose();
+            if (ho_img_bak != null)
+            {
+                ho_img_bak.Dispose();
+                ho_img_bak = null;
+            }
+            if (ImagePointMoved != null) ImagePointMoved(this, null);
+        }
+
+        /// <summary>
+        /// Set the current source bitmap, dispose any previous bitmap cache, and optionally fit it to the view.
+        /// </summary>
+        public void SetSourceBitmap(Bitmap bitmap, bool fit)
+        {
+            if (bitmap == null)
+            {
+                ClearImage();
+                return;
+            }
+
+            Bitmap oldBitmap = sourceBitmap;
+            HObject oldSource = ho_Source;
+            sourceBitmap = null;
+            ho_Source = null;
+            if (oldBitmap != null && !ReferenceEquals(oldBitmap, bitmap)) oldBitmap.Dispose();
+            if (oldSource != null && oldSource.IsInitialized()) oldSource.Dispose();
+
+            SourceBitmap = bitmap;
+            if (fit) FitImage();
         }
 
 
@@ -2839,6 +2910,9 @@ namespace EWindowControl
             // default content format
             if (e.Y < image_H.D && e.X < image_W.D && 0 <= e.Y && 0 <= e.X)
             {
+                if (ImagePointMoved != null)
+                    ImagePointMoved(this, new PointF((float)e.X, (float)e.Y));
+
                 if (enableInfoFromUser)
                 {
                 }
