@@ -1,75 +1,78 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Reflection;
 using HalconDotNet;
 
 namespace GerberViewer.Views
 {
     public sealed class GerberSampleWindow : EWindowControl.EWindowControl
     {
-        private HWindow _halconWindow;
+        private readonly List<HObject> _overlayRegions = new List<HObject>();
+        private readonly List<int[]> _overlayColors = new List<int[]>();
+
+        public GerberSampleWindow()
+        {
+            EnableMouseWheelZoom = true;
+            WinOperate = 1;
+        }
 
         public void SetSourceImage(HObject image, bool fit)
         {
+            ClearOverlayRegions();
             if (image == null || !image.IsInitialized())
             {
                 ClearImage();
                 return;
             }
-
             HObject copied = null;
             HOperatorSet.CopyImage(image, out copied);
             ClearImage();
             SourceHobject = copied;
             SetShowImage(true);
+            EnableMouseWheelZoom = true;
+            WinOperate = 1;
             if (fit) FitImage();
         }
 
         public void RenderImageOverlay(IEnumerable<Tuple<Rectangle, string, string>> overlays)
         {
-            var window = GetHalconWindow();
-            if (SourceHobject != null && SourceHobject.IsInitialized())
+            ClearOverlayRegions();
+            if (overlays != null)
             {
-                window.ClearWindow();
-                window.DispObj(SourceHobject);
-            }
-            if (overlays == null) return;
-
-            foreach (var overlay in overlays)
-            {
-                if (overlay == null) continue;
-                var rect = overlay.Item1;
-                var color = string.IsNullOrWhiteSpace(overlay.Item2) ? "red" : overlay.Item2;
-                HObject region = null;
-                try
+                foreach (var overlay in overlays)
                 {
-                    window.SetColor(color);
-                    window.SetLineWidth(2);
-                    window.SetDraw("margin");
-                    HOperatorSet.GenRectangle1(out region, rect.Top, rect.Left, rect.Bottom, rect.Right);
-                    window.DispObj(region);
-                    if (!string.IsNullOrWhiteSpace(overlay.Item3))
-                    {
-                        HOperatorSet.DispText(window, overlay.Item3, "image", rect.Top + 3, rect.Left + 3, "yellow", "box", "true");
-                    }
-                }
-                finally
-                {
-                    if (region != null && region.IsInitialized()) region.Dispose();
-                    window.SetDraw("fill");
+                    if (overlay == null) continue;
+                    var rect = overlay.Item1;
+                    HObject region = null;
+                    HOperatorSet.GenRectangle1(out region, rect.Top, rect.Left, Math.Max(rect.Top, rect.Bottom - 1), Math.Max(rect.Left, rect.Right - 1));
+                    _overlayRegions.Add(region);
+                    _overlayColors.Add(ToRgba(overlay.Item2));
                 }
             }
+            if (_overlayRegions.Count > 0) ShowRegions(_overlayRegions, _overlayColors, false);
+            else if (SourceHobject != null && SourceHobject.IsInitialized()) SetShowImage(true);
+            EnableMouseWheelZoom = true;
+            WinOperate = 1;
         }
 
-        private HWindow GetHalconWindow()
+        private static int[] ToRgba(string color)
         {
-            if (_halconWindow != null) return _halconWindow;
-            var field = typeof(EWindowControl.EWindowControl).GetField("hWindow", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (field == null) throw new MissingFieldException(typeof(EWindowControl.EWindowControl).FullName, "hWindow");
-            _halconWindow = field.GetValue(this) as HWindow;
-            if (_halconWindow == null) throw new InvalidOperationException("EWindowControl HALCON window is not initialized.");
-            return _halconWindow;
+            if (string.Equals(color, "green", StringComparison.OrdinalIgnoreCase)) return new[] { 0, 200, 0, 150 };
+            if (string.Equals(color, "yellow", StringComparison.OrdinalIgnoreCase)) return new[] { 255, 220, 0, 150 };
+            return new[] { 255, 0, 0, 150 };
+        }
+
+        private void ClearOverlayRegions()
+        {
+            foreach (var region in _overlayRegions) if (region != null && region.IsInitialized()) region.Dispose();
+            _overlayRegions.Clear();
+            _overlayColors.Clear();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) ClearOverlayRegions();
+            base.Dispose(disposing);
         }
     }
 }

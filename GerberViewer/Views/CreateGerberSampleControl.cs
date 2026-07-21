@@ -5,6 +5,7 @@ using HalconDotNet;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using GerberViewer.Stitching.Configuration;
 using GerberViewer.Stitching.Imaging;
@@ -20,6 +21,7 @@ namespace GerberViewer.Views
         private CancellationTokenSource _createSampleCts;
         private HObject _sampleSourceImage;
         private Size _sampleSourceSize;
+        private PreparedSampleRun _preparedRun;
         private SampleGridLayout _currentLayout;
         public WorkflowContext WorkflowContext { get; set; }
 
@@ -36,7 +38,7 @@ namespace GerberViewer.Views
             catch (Exception ex) { lblCreateSampleStatus.Text = "Config load failed"; MessageBox.Show(this, ex.ToString(), "Config load failed"); CommitConfig(new GerberSampleConfig(), "Ready - default config in memory"); }
         }
 
-        private void btnOpenSample_Click(object sender, EventArgs e)
+        private async void btnOpenSample_Click(object sender, EventArgs e)
         {
             using (var dlg = new OpenFileDialog())
             {
@@ -45,32 +47,35 @@ namespace GerberViewer.Views
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 try
                 {
-                    HObject decoded;
-                    HOperatorSet.ReadImage(out decoded, dlg.FileName);
-                    ReplaceSampleImage(decoded, dlg.FileName);
+                    SetRunUiState(true);
+                    HObject decoded = null;
+                    var selectedPath = dlg.FileName;
+                    await Task.Run(() => HOperatorSet.ReadImage(out decoded, selectedPath));
+                    ReplaceSampleImage(decoded, selectedPath);
                     CommitWorkflowContext();
-                    RebuildGridOverlay();
+                    await PrepareCurrentSampleAsync(true);
                     sampleConfigGrid.Refresh();
                     lblCreateSampleStatus.Text = "Sample loaded and grid rendered";
                 }
                 catch (Exception ex) { lblCreateSampleStatus.Text = "Sample load failed"; MessageBox.Show(this, ex.ToString(), "Open sample failed"); }
+                finally { SetRunUiState(false); }
             }
         }
 
-        private void btnLoadSampleConfig_Click(object sender, EventArgs e)
+        private async void btnLoadSampleConfig_Click(object sender, EventArgs e)
         {
             try
             {
                 var loaded = _configStore.LoadOrCreateDefault();
                 if (!string.IsNullOrWhiteSpace(_sampleConfig.SourceRasterPath) && string.IsNullOrWhiteSpace(loaded.SourceRasterPath)) loaded.SourceRasterPath = _sampleConfig.SourceRasterPath;
                 CommitConfig(loaded, "Config loaded: " + _configStore.ConfigPath);
-                if (_sampleSourceImage != null) RebuildGridOverlay();
+                if (_sampleSourceImage != null) await PrepareCurrentSampleAsync(false);
             }
-            catch (InvalidDataException ex) { CommitConfig(_configStore.Load(), "Warning: invalid config replaced. " + ex.Message); if (_sampleSourceImage != null) RebuildGridOverlay(); }
+            catch (InvalidDataException ex) { CommitConfig(_configStore.Load(), "Warning: invalid config replaced. " + ex.Message); if (_sampleSourceImage != null) await PrepareCurrentSampleAsync(false); }
             catch (Exception ex) { lblCreateSampleStatus.Text = "Load Config failed"; MessageBox.Show(this, ex.ToString(), "Load Config failed"); }
         }
 
-        private void btnSaveConfig_Click(object sender, EventArgs e)
+        private async void btnSaveConfig_Click(object sender, EventArgs e)
         {
             try
             {
@@ -79,12 +84,12 @@ namespace GerberViewer.Views
                 if (!validation.IsValid) { MessageBox.Show(this, string.Join(Environment.NewLine, validation.Errors), "Config validation failed"); return; }
                 _configStore.Save(_sampleConfig);
                 CommitConfig(_configStore.Load(), "Config saved: " + _configStore.ConfigPath);
-                if (_sampleSourceImage != null) RebuildGridOverlay();
+                if (_sampleSourceImage != null) await PrepareCurrentSampleAsync(false);
             }
             catch (Exception ex) { lblCreateSampleStatus.Text = "Save Config failed"; MessageBox.Show(this, ex.ToString(), "Save Config failed"); }
         }
 
-        private void btnRefreshPreview_Click(object sender, EventArgs e)
+        private async void btnRefreshPreview_Click(object sender, EventArgs e)
         {
             try
             {
@@ -94,7 +99,7 @@ namespace GerberViewer.Views
                     return;
                 }
                 sampleConfigGrid.Refresh();
-                RebuildGridOverlay();
+                await PrepareCurrentSampleAsync(false);
                 lblCreateSampleStatus.Text = "Preview refreshed";
             }
             catch (Exception ex)
@@ -106,18 +111,19 @@ namespace GerberViewer.Views
 
         private async void btnCreateSample_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(_sampleConfig.SourceRasterPath) || !File.Exists(_sampleConfig.SourceRasterPath)) { MessageBox.Show(this, "Please select a sample raster first."); return; }
-            using (var dlg = new FolderBrowserDialog()) { dlg.Description = "Select sample output directory"; if (dlg.ShowDialog(this) != DialogResult.OK) return; _sampleConfig.OutputDirectory = dlg.SelectedPath; }
+            if (_preparedRun == null || string.IsNullOrWhiteSpace(_sampleConfig.SourceRasterPath) || !File.Exists(_sampleConfig.SourceRasterPath)) { MessageBox.Show(this, "Please select a sample raster first and refresh preview."); return; }
+            using (var dlg = new FolderBrowserDialog()) { dlg.Description = "Select sample output root directory"; if (dlg.ShowDialog(this) != DialogResult.OK) return; _sampleConfig.OutputDirectory = dlg.SelectedPath; }
+            if (!ConfirmOutputRoot(_sampleConfig.OutputDirectory)) return;
             SetRunUiState(true); prgCreateSample.Value = 0; _createSampleCts = new CancellationTokenSource();
-            var progress = new Progress<SampleCropProgress>(p => { prgCreateSample.Maximum = Math.Max(1, p.Total); prgCreateSample.Value = Math.Min(prgCreateSample.Maximum, p.Completed); lblCreateSampleStatus.Text = p.Message; if (_currentLayout != null && p.Completed > 0) { _tileStates[p.Completed - 1] = SampleTileState.Completed; RenderGridOverlay(); } });
+            var progress = new Progress<SampleCropProgress>(p => { prgCreateSample.Maximum = Math.Max(1, p.Total); prgCreateSample.Value = Math.Min(prgCreateSample.Maximum, p.Completed); lblCreateSampleStatus.Text = p.Message; if (_currentLayout != null) { _tileStates[p.OrderIndex] = p.State; RenderGridOverlay(); } });
             try
             {
-                var result = await new SampleTileGenerator().GenerateAsync(_sampleConfig, _createSampleCts.Token, progress);
+                var result = await new SampleTileGenerator().GenerateAsync(_preparedRun, _sampleConfig.OutputDirectory, _createSampleCts.Token, progress);
                 lblCreateSampleStatus.Text = "Completed";
                 if (WorkflowContext != null) { WorkflowContext.OutputDirectory = result.OutputDirectory; WorkflowContext.ManifestPath = result.ManifestPath; WorkflowContext.NotifyChanged(); }
             }
-            catch (OperationCanceledException) { lblCreateSampleStatus.Text = "Cancelled - incomplete output marked"; }
-            catch (Exception ex) { lblCreateSampleStatus.Text = "Failed - incomplete output marked"; MessageBox.Show(this, ex.ToString(), "Create sample failed"); }
+            catch (OperationCanceledException) { lblCreateSampleStatus.Text = "Cancelled - no manifest published"; }
+            catch (Exception ex) { lblCreateSampleStatus.Text = "Failed - no manifest published"; MessageBox.Show(this, ex.ToString(), "Create sample failed"); }
             finally { SetRunUiState(false); if (_createSampleCts != null) { _createSampleCts.Dispose(); _createSampleCts = null; } }
         }
 
@@ -161,12 +167,19 @@ namespace GerberViewer.Views
             if (old != null && old.IsInitialized()) old.Dispose();
             sampleWindow.SetSourceImage(_sampleSourceImage, true);
         }
-        private void RebuildGridOverlay()
+        private async Task PrepareCurrentSampleAsync(bool fit)
         {
             var validation = GerberSampleConfigValidator.Validate(_sampleConfig, _sampleSourceSize);
             if (!validation.IsValid) throw new InvalidOperationException(string.Join(Environment.NewLine, validation.Errors));
-            _currentLayout = SampleGeometryCalculator.Calculate(_sampleSourceSize.Width, _sampleSourceSize.Height, _sampleConfig);
+            var source = _sampleSourceImage;
+            var config = _sampleConfig;
+            var prepared = await Task.Run(() => new SamplePreparationService().Prepare(source, config, CancellationToken.None));
+            var old = _preparedRun;
+            _preparedRun = prepared;
+            _currentLayout = prepared.Layout;
+            if (old != null) old.Dispose();
             _tileStates.Clear(); foreach (var t in _currentLayout.Tiles) _tileStates[t.OrderIndex] = SampleTileState.Pending;
+            sampleWindow.SetSourceImage(_preparedRun.ProcessedImage, fit);
             RenderGridOverlay();
         }
         private void RenderGridOverlay()
@@ -187,9 +200,21 @@ namespace GerberViewer.Views
         }
         private void DisposeSampleSource()
         {
+            if (_preparedRun != null) { _preparedRun.Dispose(); _preparedRun = null; }
             if (_sampleSourceImage != null && _sampleSourceImage.IsInitialized()) _sampleSourceImage.Dispose();
             _sampleSourceImage = null;
             _sampleSourceSize = Size.Empty;
+        }
+
+        private bool ConfirmOutputRoot(string outputRoot)
+        {
+            var root = Path.GetFullPath(outputRoot);
+            if (Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any())
+            {
+                var answer = MessageBox.Show(this, "The selected output root is not empty. GerberViewer will create a new GerberSample_<runId> folder and will not delete the selected root.\n\nPath: " + root + "\n\nContinue?", "Confirm sample output", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+                return answer == DialogResult.OK;
+            }
+            return true;
         }
 
         private void SetRunUiState(bool running)

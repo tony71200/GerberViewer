@@ -207,5 +207,16 @@
     <li><code>CommitWorkflowContext</code>: chỉ map <code>SourceRasterPath</code> sang <code>Workflow.Models.SampleGerberConfig</code>, không gán trực tiếp <code>Configuration.GerberSampleConfig</code> để tránh lỗi kiểu CS0029.</li>
   </ul>
 
+<h2>Tab 2 canonical prepared-run variables</h2>
+<ul>
+  <li><code>PreparedSampleRun.SourceImage</code>: owned copy of the decoded HALCON source image.</li>
+  <li><code>PreparedSampleRun.ProcessedImage</code>: owned HALCON image used by preview and generator.</li>
+  <li><code>PreparedSampleRun.SourceWidth/SourceHeight</code> and <code>ProcessedWidth/ProcessedHeight</code>: dimensions recorded in manifest v1.</li>
+  <li><code>PreparedSampleRun.Layout</code> / <code>TilesByOrder</code>: single source of truth for preview rectangles, crop rectangles, filenames, and manifest tiles.</li>
+  <li><code>ImagePreprocessMetadata</code>: records preprocess mode, keep-aspect flag, invert flag, and processed-source coordinate space.</li>
+  <li><code>SampleCropProgress.OrderIndex</code> and <code>State</code>: progress now reports exact tile identity instead of inferring from completed count.</li>
+  <li><code>SampleManifest.ManifestVersion</code>: current canonical contract version, starting at <code>1</code>.</li>
+  <li><code>SampleTileInfo.ExpectedPath</code>, <code>ExpectedX</code>, <code>ExpectedY</code>, <code>Width</code>, <code>Height</code>: deterministic processed-source tile identity consumed by future Tab 3.</li>
+</ul>
 </body>
 </html>
