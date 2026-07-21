@@ -208,7 +208,7 @@ namespace GerberViewer.Views
 
             _rendering = true;
             lblStatus.Text = "Generating preview...";
-            RenderOptions opts = BuildOptions(false);
+            RenderOptions opts = BuildOptions(true);
 
             // Render o worker thread; Bitmap ban giao quyen so huu cho canvas sau khi xong (Spec 5.1.4)
             Task.Run(() =>

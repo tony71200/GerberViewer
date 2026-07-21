@@ -15,5 +15,10 @@
 <tr><td><code>GerberViewer/GerberCanvas.cs</code></td><td><code>DrawGrid(Graphics g)</code></td><td>Added helper for minor/major grid rendering.</td><td>Keeps grid drawing isolated and reusable.</td></tr>
 <tr><td><code>GerberViewer/GerberCanvas.cs</code></td><td><code>Dispose(bool disposing)</code></td><td>Disposes grid pens in addition to preview bitmap.</td><td>Prevents GDI resource leaks.</td></tr>
 <tr><td><code>GerberViewer/MainForm.Designer.cs</code></td><td><code>InitializeComponent</code> UI labels/style</td><td>Renamed toolbar labels, constrained Export DPI choices, applied dark toolbar/sidebar and light status bar.</td><td>Matches spec-required controls and visual style of onlinegerberviewer.com.</td></tr>
+
+
+<tr><td><code>GerberViewer/GerberCanvas.cs</code></td><td><code>GerberCanvas : EWindowControl.EWindowControl</code>, <code>SetImage</code>, <code>FitToView</code>, <code>ImageCursorMoved</code></td><td>Changed GerberCanvas into an adapter over <code>EWindowControl</code> while preserving the existing ReadGerberControl API.</td><td>Matches the referenced branch by moving Gerber preview display/zoom/pan to EWindowControl without changing callers that render to Bitmap.</td></tr>
+<tr><td><code>EWindowControl/EWindowControl.cs</code></td><td><code>HasSourceImage</code>, <code>CurrentZoom</code>, <code>ImagePointMoved</code>, <code>ClearImage</code>, <code>SetSourceBitmap</code></td><td>Added public adapter members so GerberCanvas can pass Bitmap images into the HALCON-backed control and report image coordinates.</td><td>Provides the Bitmap-to-HALCON bridge in EWindowControl and supports the GerberCanvas adapter from the referenced branch.</td></tr>
+<tr><td><code>GerberViewer/Views/ReadGerberControl.cs</code></td><td><code>RenderPreviewAsync</code></td><td>Restored preview rendering to call <code>BuildOptions(true)</code> and <code>canvas.SetImage(...)</code>.</td><td>Keeps the existing Bitmap render path and lets GerberCanvas/EWindowControl handle display.</td></tr>
 </tbody></table>
 </body></html>
