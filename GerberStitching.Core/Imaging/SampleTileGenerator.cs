@@ -60,9 +60,19 @@ namespace GerberViewer.Stitching.Imaging
                     return new SampleCropResult { OutputDirectory = output, ManifestPath = manifestPath, Completed = true };
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                try { if (Directory.Exists(output)) { File.WriteAllText(incomplete, "Sample generation did not complete."); } } catch { }
+                try
+                {
+                    if (Directory.Exists(output))
+                    {
+                        File.WriteAllText(incomplete, "Sample generation did not complete." + Environment.NewLine + ex, Encoding.UTF8);
+                    }
+                }
+                catch (Exception markEx)
+                {
+                    throw new IOException("Sample generation failed and incomplete marker could not be written: " + incomplete, markEx);
+                }
                 throw;
             }
         }

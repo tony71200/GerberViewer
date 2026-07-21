@@ -191,5 +191,17 @@
     <li><code>sample_config.json</code>, <code>sample_overlay.png</code>, <code>tiles/*</code>: output bắt buộc trong <code>OutputDirectory</code>.</li>
     <li><code>INCOMPLETE.txt</code>: marker khi cancel/fail để partial output được đánh dấu rõ ràng.</li>
   </ul>
+
+  <h2>Tab 2 fixed config/display flow</h2>
+  <ul>
+    <li><code>AppPaths.SampleConfigPath</code>: đường dẫn cố định <code>Config/gerber_sample_config.json</code> dưới thư mục chạy chương trình.</li>
+    <li><code>SampleConfigStore</code>: load/create/save config độc lập WinForms, tự tạo thư mục, ghi file tạm, đọc lại xác nhận và backup JSON lỗi dạng <code>.invalid_yyyyMMdd_HHmmss.json</code>.</li>
+    <li><code>btnSaveConfig</code>: nút mới nằm cạnh <code>btnLoadSampleConfig</code>; cả hai dùng đường dẫn cố định, không mở dialog config.</li>
+    <li><code>btnOpenSample_Click</code>: decode ảnh raster bằng <code>ImageRead.ReadBitmap</code>, giữ source bitmap owned bởi Tab 2, gán clone cho <code>sampleWindow.SetSourceBitmap(..., true)</code> và tính grid ngay.</li>
+    <li><code>SampleGeometryCalculator.Calculate</code>: tạo <code>SampleGridLayout</code> deterministic từ kích thước ảnh processed, rows/columns, overlap và start order.</li>
+    <li><code>RenderGridOverlay</code>: vẽ rectangle pending màu đỏ, label <code>OrderIndex</code>, và chuyển tile sang xanh lá khi progress hoàn tất tile đó.</li>
+    <li><code>SetRunUiState</code>: disable Open/Load/Save/Create khi worker đang chạy và chỉ enable Cancel trong lúc chạy.</li>
+  </ul>
+
 </body>
 </html>
