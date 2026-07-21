@@ -1,0 +1,18 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+using GerberViewer.Stitching.Alignment;
+using GerberViewer.Stitching.Models;
+
+namespace GerberViewer.Views
+{
+    public sealed class ManualAlignmentDialog : Form, IManualAlignmentProvider
+    {
+        private readonly PictureBox _sample = new PictureBox(); private readonly PictureBox _captured = new PictureBox(); private readonly TrackBar _alpha = new TrackBar(); private readonly NumericUpDown _x = new NumericUpDown(); private readonly NumericUpDown _y = new NumericUpDown(); private readonly NumericUpDown _rot = new NumericUpDown(); private readonly NumericUpDown _scale = new NumericUpDown(); private readonly TextBox _diag = new TextBox(); private ManualAlignmentRequest _request;
+        public ManualAlignmentDialog() { Text = "Manual Alignment"; Width = 1000; Height = 700; KeyPreview = true; var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3 }; Controls.Add(layout); _sample.SizeMode = _captured.SizeMode = PictureBoxSizeMode.Zoom; layout.Controls.Add(_sample,0,0); layout.Controls.Add(_captured,1,0); var controls = new FlowLayoutPanel { Dock = DockStyle.Fill }; layout.SetColumnSpan(controls,2); layout.Controls.Add(controls,0,1); foreach (var n in new[]{_x,_y,_rot,_scale}) { n.Minimum=-100000; n.Maximum=100000; n.DecimalPlaces=2; n.Increment=1; controls.Controls.Add(n); } _scale.Value = 1; _scale.Enabled = false; _alpha.Minimum=0; _alpha.Maximum=100; _alpha.Value=50; controls.Controls.Add(new Label{Text="Alpha overlay/difference"}); controls.Controls.Add(_alpha); AddButton(controls,"Reset expected-grid",delegate{LoadPose(_request.ExpectedGlobalPose);}); AddButton(controls,"Reset best automatic",delegate{LoadPose(_request.BestAutomaticCandidate ?? _request.ExpectedGlobalPose);}); AddButton(controls,"Accept",delegate{DialogResult=DialogResult.OK;}); AddButton(controls,"Skip",delegate{DialogResult=DialogResult.Ignore;}); AddButton(controls,"Cancel Run",delegate{DialogResult=DialogResult.Cancel;}); _diag.Multiline=true; _diag.ReadOnly=true; _diag.Dock=DockStyle.Fill; layout.SetColumnSpan(_diag,2); layout.Controls.Add(_diag,0,2); KeyDown += OnNudge; }
+        public ManualAlignmentResult RequestManualAlignment(ManualAlignmentRequest request, System.Threading.CancellationToken cancellationToken) { _request=request; if (request.SampleTile != null && System.IO.File.Exists(request.SampleTile.ExpectedPath)) _sample.Image = new Bitmap(request.SampleTile.ExpectedPath); if (request.Captured != null && System.IO.File.Exists(request.Captured.FilePath)) _captured.Image = new Bitmap(request.Captured.FilePath); _diag.Text = string.Join(Environment.NewLine, request.Diagnostics ?? new System.Collections.Generic.List<string>()); LoadPose(request.ExpectedGlobalPose); var r=ShowDialog(); return new ManualAlignmentResult { Accepted=r==DialogResult.OK, Skipped=r==DialogResult.Ignore, CancelRun=r==DialogResult.Cancel, GlobalPose=AlignStitchWorkflowService.Translation((double)_x.Value,(double)_y.Value), Notes=_diag.Text }; }
+        private void LoadPose(double[,] h) { if (h==null) return; _x.Value=(decimal)h[0,2]; _y.Value=(decimal)h[1,2]; _rot.Value=(decimal)(Math.Atan2(h[1,0],h[0,0])*180/Math.PI); }
+        private static void AddButton(Control p,string text,EventHandler h){ var b=new Button{Text=text,AutoSize=true}; b.Click+=h; p.Controls.Add(b); }
+        private void OnNudge(object s, KeyEventArgs e) { var step=e.Shift?10:1; if(e.KeyCode==Keys.Left)_x.Value-=step; if(e.KeyCode==Keys.Right)_x.Value+=step; if(e.KeyCode==Keys.Up)_y.Value-=step; if(e.KeyCode==Keys.Down)_y.Value+=step; }
+    }
+}
