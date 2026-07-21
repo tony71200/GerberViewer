@@ -783,6 +783,7 @@ namespace EWindowControl
                 var color = string.IsNullOrWhiteSpace(overlay.Item2) ? "red" : overlay.Item2;
                 hWindow.SetColor(color);
                 hWindow.SetLineWidth(2);
+                hWindow.SetDraw("margin");
                 HObject region = null;
                 try
                 {
@@ -790,12 +791,13 @@ namespace EWindowControl
                     hWindow.DispObj(region);
                     if (!string.IsNullOrWhiteSpace(overlay.Item3))
                     {
-                        HOperatorSet.DispText(hWindow, overlay.Item3, "image", rect.Top + 3, rect.Left + 3, color, "box", "false");
+                        HOperatorSet.DispText(hWindow, overlay.Item3, "image", rect.Top + 3, rect.Left + 3, "yellow", "box", "true");
                     }
                 }
                 finally
                 {
                     if (region != null && region.IsInitialized()) region.Dispose();
+                    hWindow.SetDraw("fill");
                 }
             }
         }
