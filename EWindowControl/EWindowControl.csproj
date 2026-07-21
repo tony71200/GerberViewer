@@ -53,10 +53,15 @@
     <ErrorReport>prompt</ErrorReport>
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
+  <PropertyGroup>
+    <HalconDotNetPath Condition="'$(HalconDotNetPath)' == '' And Exists('$(HALCONROOT)\bin\dotnet35\halcondotnetxl.dll')">$(HALCONROOT)\bin\dotnet35\halcondotnetxl.dll</HalconDotNetPath>
+    <HalconDotNetPath Condition="'$(HalconDotNetPath)' == ''">dll\halcondotnetxl.dll</HalconDotNetPath>
+  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="halcondotnetxl, Version=18.11.1.1, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8, processorArchitecture=MSIL">
+    <Reference Include="halcondotnetxl, Version=25.5.0.1, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Users\USER\AppData\Local\Programs\MVTec\HALCON-25.05-Progress\bin\dotnet35\halcondotnetxl.dll</HintPath>
+      <HintPath>$(HalconDotNetPath)</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="hdevenginedotnetxl">
       <HintPath>C:\Users\USER\AppData\Local\Programs\MVTec\HALCON-25.05-Progress\bin\dotnet35\hdevenginedotnetxl.dll</HintPath>
