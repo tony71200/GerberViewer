@@ -25,7 +25,7 @@ namespace GerberViewer.Views
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
 
-        private const int PreviewDpi = 6000;
+        private const int PreviewDpi = 2400;
         private const int LargePrimitiveWarningThreshold = 50000;
 
         public WorkflowContext WorkflowContext { get; set; }
