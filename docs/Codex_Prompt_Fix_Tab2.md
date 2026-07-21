@@ -878,6 +878,9 @@ Tab 2 chỉ được xem là hoàn thành khi:
 - [x] Load ảnh lập tức vẽ grid theo config.
 - [x] Tất cả tile Pending có viền đỏ dạng margin, không fill kín ảnh.
 - [x] Mỗi tile có OrderIndex đúng và label hiển thị rõ trên overlay.
+- [x] Có nút Refresh để cập nhật lại layout/order preview từ config hiện tại.
+- [x] Không thêm API mới trực tiếp vào project EWindowControl; logic preview HALCON nằm trong control kế thừa `GerberSampleWindow`.
+- [x] Đã ghi các lỗi trong cuộc thoại vào `docs/error_Tab2.md`.
 - [x] Tile chỉ chuyển xanh sau khi crop và save thành công.
 - [ ] State từng tile được kiểm tra độc lập.
 - [ ] Cancel và lỗi không tạo manifest hoàn chỉnh giả.

@@ -18,3 +18,5 @@
 - HALCON runtime checks.
 - x64 Debug/Release builds.
 | `rg -n "ImageRead|ReadBitmap|SetSourceBitmap|HOperatorSet.ReadImage|SetSourceImage|RenderImageOverlay" GerberViewer/Views/CreateGerberSampleControl.cs EWindowControl/EWindowControl.cs` | Pass | Confirmed Tab 2 preview path now uses HALCON image loading/display APIs instead of GDI+ bitmap loading. |
+| `rg -n "SetSourceImage|RenderImageOverlay" EWindowControl/EWindowControl.cs` | Pass | Confirmed sample-specific HALCON preview APIs are no longer defined in the EWindowControl project file. |
+| `rg -n "btnRefreshPreview|GerberSampleWindow|SetSourceImage|RenderImageOverlay" GerberViewer/Views GerberViewer/GerberViewer.csproj` | Pass | Confirmed Refresh UI and derived sample preview control wiring. |

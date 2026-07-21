@@ -11,12 +11,13 @@ namespace GerberViewer.Views
             this.txtSamplePath = new System.Windows.Forms.TextBox();
             this.btnLoadSampleConfig = new System.Windows.Forms.Button();
             this.btnSaveConfig = new System.Windows.Forms.Button();
+            this.btnRefreshPreview = new System.Windows.Forms.Button();
             this.btnCreateSample = new System.Windows.Forms.Button();
             this.btnCancelCreateSample = new System.Windows.Forms.Button();
             this.prgCreateSample = new System.Windows.Forms.ProgressBar();
             this.lblCreateSampleStatus = new System.Windows.Forms.Label();
             this.splitContainer = new System.Windows.Forms.SplitContainer();
-            this.sampleWindow = new EWindowControl.EWindowControl();
+            this.sampleWindow = new GerberViewer.Views.GerberSampleWindow();
             this.sampleConfigGrid = new System.Windows.Forms.PropertyGrid();
             this.commandLayout.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer)).BeginInit();
@@ -24,19 +25,21 @@ namespace GerberViewer.Views
             this.splitContainer.Panel2.SuspendLayout();
             this.splitContainer.SuspendLayout();
             this.SuspendLayout();
-            this.commandLayout.ColumnCount = 6;
+            this.commandLayout.ColumnCount = 7;
             this.commandLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 116F));
             this.commandLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.commandLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 108F));
             this.commandLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 108F));
+            this.commandLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 92F));
             this.commandLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 96F));
             this.commandLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 84F));
             this.commandLayout.Controls.Add(this.btnOpenSample, 0, 0);
             this.commandLayout.Controls.Add(this.txtSamplePath, 1, 0);
             this.commandLayout.Controls.Add(this.btnLoadSampleConfig, 2, 0);
             this.commandLayout.Controls.Add(this.btnSaveConfig, 3, 0);
-            this.commandLayout.Controls.Add(this.btnCreateSample, 4, 0);
-            this.commandLayout.Controls.Add(this.btnCancelCreateSample, 5, 0);
+            this.commandLayout.Controls.Add(this.btnRefreshPreview, 4, 0);
+            this.commandLayout.Controls.Add(this.btnCreateSample, 5, 0);
+            this.commandLayout.Controls.Add(this.btnCancelCreateSample, 6, 0);
             this.commandLayout.Controls.Add(this.prgCreateSample, 0, 1);
             this.commandLayout.Controls.Add(this.lblCreateSampleStatus, 4, 1);
             this.commandLayout.Dock = System.Windows.Forms.DockStyle.Top;
@@ -50,6 +53,7 @@ namespace GerberViewer.Views
             this.txtSamplePath.Dock = System.Windows.Forms.DockStyle.Fill; this.txtSamplePath.Name = "txtSamplePath"; this.txtSamplePath.ReadOnly = true; this.txtSamplePath.Margin = new System.Windows.Forms.Padding(3, 9, 3, 3);
             this.btnLoadSampleConfig.Dock = System.Windows.Forms.DockStyle.Fill; this.btnLoadSampleConfig.Name = "btnLoadSampleConfig"; this.btnLoadSampleConfig.Text = "Load Config"; this.btnLoadSampleConfig.UseVisualStyleBackColor = true; this.btnLoadSampleConfig.Click += new System.EventHandler(this.btnLoadSampleConfig_Click);
             this.btnSaveConfig.Dock = System.Windows.Forms.DockStyle.Fill; this.btnSaveConfig.Name = "btnSaveConfig"; this.btnSaveConfig.Text = "Save Config"; this.btnSaveConfig.UseVisualStyleBackColor = true; this.btnSaveConfig.Click += new System.EventHandler(this.btnSaveConfig_Click);
+            this.btnRefreshPreview.Dock = System.Windows.Forms.DockStyle.Fill; this.btnRefreshPreview.Name = "btnRefreshPreview"; this.btnRefreshPreview.Text = "Refresh"; this.btnRefreshPreview.UseVisualStyleBackColor = true; this.btnRefreshPreview.Click += new System.EventHandler(this.btnRefreshPreview_Click);
             this.btnCreateSample.Dock = System.Windows.Forms.DockStyle.Fill; this.btnCreateSample.Name = "btnCreateSample"; this.btnCreateSample.Text = "Create"; this.btnCreateSample.UseVisualStyleBackColor = true; this.btnCreateSample.Click += new System.EventHandler(this.btnCreateSample_Click);
             this.btnCancelCreateSample.Dock = System.Windows.Forms.DockStyle.Fill; this.btnCancelCreateSample.Enabled = false; this.btnCancelCreateSample.Name = "btnCancelCreateSample"; this.btnCancelCreateSample.Text = "Cancel"; this.btnCancelCreateSample.UseVisualStyleBackColor = true; this.btnCancelCreateSample.Click += new System.EventHandler(this.btnCancelCreateSample_Click);
             this.commandLayout.SetColumnSpan(this.prgCreateSample, 4); this.prgCreateSample.Dock = System.Windows.Forms.DockStyle.Fill; this.prgCreateSample.Name = "prgCreateSample"; this.prgCreateSample.Margin = new System.Windows.Forms.Padding(3, 6, 3, 4);
@@ -61,6 +65,6 @@ namespace GerberViewer.Views
             this.Controls.Add(this.splitContainer); this.Controls.Add(this.commandLayout); this.Name = "CreateGerberSampleControl"; this.Size = new System.Drawing.Size(800, 500);
             this.commandLayout.ResumeLayout(false); this.commandLayout.PerformLayout(); this.splitContainer.Panel1.ResumeLayout(false); this.splitContainer.Panel2.ResumeLayout(false); ((System.ComponentModel.ISupportInitialize)(this.splitContainer)).EndInit(); this.splitContainer.ResumeLayout(false); this.ResumeLayout(false);
         }
-        private System.Windows.Forms.TableLayoutPanel commandLayout; private System.Windows.Forms.Button btnOpenSample; private System.Windows.Forms.TextBox txtSamplePath; private System.Windows.Forms.Button btnLoadSampleConfig; private System.Windows.Forms.Button btnSaveConfig; private System.Windows.Forms.Button btnCreateSample; private System.Windows.Forms.Button btnCancelCreateSample; private System.Windows.Forms.ProgressBar prgCreateSample; private System.Windows.Forms.Label lblCreateSampleStatus; private System.Windows.Forms.SplitContainer splitContainer; private EWindowControl.EWindowControl sampleWindow; private System.Windows.Forms.PropertyGrid sampleConfigGrid;
+        private System.Windows.Forms.TableLayoutPanel commandLayout; private System.Windows.Forms.Button btnOpenSample; private System.Windows.Forms.TextBox txtSamplePath; private System.Windows.Forms.Button btnLoadSampleConfig; private System.Windows.Forms.Button btnSaveConfig; private System.Windows.Forms.Button btnRefreshPreview; private System.Windows.Forms.Button btnCreateSample; private System.Windows.Forms.Button btnCancelCreateSample; private System.Windows.Forms.ProgressBar prgCreateSample; private System.Windows.Forms.Label lblCreateSampleStatus; private System.Windows.Forms.SplitContainer splitContainer; private GerberViewer.Views.GerberSampleWindow sampleWindow; private System.Windows.Forms.PropertyGrid sampleConfigGrid;
     }
 }

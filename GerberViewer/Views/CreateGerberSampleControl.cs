@@ -84,6 +84,26 @@ namespace GerberViewer.Views
             catch (Exception ex) { lblCreateSampleStatus.Text = "Save Config failed"; MessageBox.Show(this, ex.ToString(), "Save Config failed"); }
         }
 
+        private void btnRefreshPreview_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (_sampleSourceImage == null || !_sampleSourceImage.IsInitialized())
+                {
+                    MessageBox.Show(this, "Please open a sample image before refreshing the preview.", "Refresh preview");
+                    return;
+                }
+                sampleConfigGrid.Refresh();
+                RebuildGridOverlay();
+                lblCreateSampleStatus.Text = "Preview refreshed";
+            }
+            catch (Exception ex)
+            {
+                lblCreateSampleStatus.Text = "Refresh preview failed";
+                MessageBox.Show(this, ex.ToString(), "Refresh preview failed");
+            }
+        }
+
         private async void btnCreateSample_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(_sampleConfig.SourceRasterPath) || !File.Exists(_sampleConfig.SourceRasterPath)) { MessageBox.Show(this, "Please select a sample raster first."); return; }
@@ -174,7 +194,7 @@ namespace GerberViewer.Views
 
         private void SetRunUiState(bool running)
         {
-            btnOpenSample.Enabled = !running; btnLoadSampleConfig.Enabled = !running; btnSaveConfig.Enabled = !running; btnCreateSample.Enabled = !running; btnCancelCreateSample.Enabled = running;
+            btnOpenSample.Enabled = !running; btnLoadSampleConfig.Enabled = !running; btnSaveConfig.Enabled = !running; btnRefreshPreview.Enabled = !running; btnCreateSample.Enabled = !running; btnCancelCreateSample.Enabled = running;
         }
     }
 }

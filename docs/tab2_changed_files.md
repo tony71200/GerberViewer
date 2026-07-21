@@ -15,3 +15,6 @@
 
 | `EWindowControl/EWindowControl.cs` | `SetSourceImage`, `RenderImageOverlay` | Support large TIFF/BigTIFF preview | Tab 2 had to convert selected rasters through `Bitmap` | Viewer accepts HALCON `HObject` source and draws overlays in image coordinates. |
 | `GerberViewer/Views/CreateGerberSampleControl.cs` | `btnOpenSample_Click`, `ReplaceSampleImage`, `RenderGridOverlay` | Use HALCON input path | `ImageRead.ReadBitmap` failed on large TIFF with `Parameter is not valid` | `HOperatorSet.ReadImage` loads sample, `GetImageSize` drives geometry, overlays render without cloning a huge bitmap. |
+
+| `GerberViewer/Views/GerberSampleWindow.cs` | `GerberSampleWindow` | Move sample preview extension out of EWindowControl | Sample-specific APIs were added to `EWindowControl` directly | New derived control owns HALCON sample image display and margin overlay rendering. |
+| `docs/error_Tab2.md` | Error log | Track conversation errors | Errors only existed in chat/build screenshots | Documents CS0029, Bitmap TIFF failure, filled overlay, EWindowControl constraint, and missing Refresh button. |

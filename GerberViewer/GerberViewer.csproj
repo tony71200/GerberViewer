@@ -90,6 +90,9 @@
     <Compile Include="Views\ReadGerberControl.Designer.cs">
       <DependentUpon>ReadGerberControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Views\GerberSampleWindow.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Views\CreateGerberSampleControl.cs">
       <SubType>UserControl</SubType>
     </Compile>

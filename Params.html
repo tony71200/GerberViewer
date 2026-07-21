@@ -200,8 +200,9 @@
     <li><code>btnOpenSample_Click</code>: decode ảnh raster lớn/TIFF/BigTIFF bằng <code>HOperatorSet.ReadImage</code>, giữ <code>HObject</code> owned bởi Tab 2, gán cho <code>sampleWindow.SetSourceImage(..., true)</code> và tính grid ngay từ <code>GetImageSize</code>.</li>
     <li><code>SampleGeometryCalculator.Calculate</code>: tạo <code>SampleGridLayout</code> deterministic từ kích thước ảnh processed, rows/columns, overlap và start order.</li>
     <li><code>RenderGridOverlay</code>: vẽ rectangle pending dạng viền đỏ, label <code>OrderIndex</code>, và chuyển tile sang xanh lá khi progress hoàn tất tile đó qua HALCON overlay, không rasterize trực tiếp lên bitmap source.</li>
-    <li><code>EWindowControl.SetSourceImage</code>: nhận <code>HObject</code>, copy nội bộ, bật base image và fit; caller có thể dispose object đầu vào sau khi gọi.</li>
-    <li><code>EWindowControl.RenderImageOverlay</code>: render rectangle theo image coordinate bằng HALCON <code>margin</code> mode để chỉ thấy viền, kèm label <code>OrderIndex</code> màu vàng có box để dễ đọc.</li>
+    <li><code>GerberSampleWindow.SetSourceImage</code>: control mới kế thừa <code>EWindowControl.EWindowControl</code>, nhận <code>HObject</code>, copy nội bộ, bật base image và fit; không sửa project <code>EWindowControl</code>.</li>
+    <li><code>GerberSampleWindow.RenderImageOverlay</code>: render rectangle theo image coordinate bằng HALCON <code>margin</code> mode để chỉ thấy viền, kèm label <code>OrderIndex</code> màu vàng có box để dễ đọc.</li>
+    <li><code>btnRefreshPreview</code>: refresh lại layout/order preview từ config hiện tại trong <code>sampleConfigGrid</code> mà không cần mở lại ảnh.</li>
     <li><code>SetRunUiState</code>: disable Open/Load/Save/Create khi worker đang chạy và chỉ enable Cancel trong lúc chạy.</li>
     <li><code>CommitWorkflowContext</code>: chỉ map <code>SourceRasterPath</code> sang <code>Workflow.Models.SampleGerberConfig</code>, không gán trực tiếp <code>Configuration.GerberSampleConfig</code> để tránh lỗi kiểu CS0029.</li>
   </ul>
