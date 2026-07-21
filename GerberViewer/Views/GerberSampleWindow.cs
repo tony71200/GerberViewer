@@ -37,14 +37,17 @@ namespace GerberViewer.Views
         public void RenderImageOverlay(IEnumerable<Tuple<Rectangle, string, string>> overlays)
         {
             ClearOverlayRegions();
+            var zoom = Math.Max(0.01d, CurrentZoom);
+            var lineWidth = Math.Max(1, (int)Math.Round(2d / zoom));
+            var labelSize = Math.Max(4, (int)Math.Round(14d / zoom));
             if (overlays != null)
             {
                 foreach (var overlay in overlays)
                 {
                     if (overlay == null) continue;
                     var rect = overlay.Item1;
-                    AddRectangleOutline(rect, ToRgba(overlay.Item2));
-                    AddLabelContours(overlay.Item3, rect.Left + 6, rect.Top + 8);
+                    AddRectangleOutline(rect, lineWidth, ToRgba(overlay.Item2));
+                    AddLabelContours(overlay.Item3, rect.Left + lineWidth * 3, rect.Top + lineWidth * 4, labelSize, lineWidth);
                 }
             }
             if (_overlayRegions.Count > 0) ShowRegions(_overlayRegions, _overlayColors, false);
@@ -53,48 +56,63 @@ namespace GerberViewer.Views
             WinOperate = 1;
         }
 
-        private void AddRectangleOutline(Rectangle rect, int[] color)
+        private void AddRectangleOutline(Rectangle rect, int lineWidth, int[] color)
         {
-            HObject contour = null;
             var top = rect.Top;
             var left = rect.Left;
-            var bottom = Math.Max(rect.Top, rect.Bottom - 1);
-            var right = Math.Max(rect.Left, rect.Right - 1);
-            HOperatorSet.GenContourPolygonXld(out contour, new HTuple(new double[] { top, bottom, bottom, top, top }), new HTuple(new double[] { left, left, right, right, left }));
-            _overlayRegions.Add(contour);
-            _overlayColors.Add(color);
+            var bottom = Math.Max(rect.Top + 1, rect.Bottom);
+            var right = Math.Max(rect.Left + 1, rect.Right);
+            AddFilledRect(top, left, Math.Min(bottom, top + lineWidth), right, color);
+            AddFilledRect(Math.Max(top, bottom - lineWidth), left, bottom, right, color);
+            AddFilledRect(top, left, bottom, Math.Min(right, left + lineWidth), color);
+            AddFilledRect(top, Math.Max(left, right - lineWidth), bottom, right, color);
         }
 
-        private void AddLabelContours(string text, int x, int y)
+        private void AddLabelContours(string text, int x, int y, int size, int lineWidth)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
             var cursor = x;
             foreach (var ch in text)
             {
-                if (char.IsDigit(ch)) AddDigitContours(ch - '0', cursor, y, 9, ToRgba("yellow"));
-                cursor += 8;
+                if (char.IsDigit(ch)) AddDigitContours(ch - '0', cursor, y, size, lineWidth, ToRgba("yellow"));
+                cursor += Math.Max(1, size / 2) + lineWidth * 2;
             }
         }
 
-        private void AddDigitContours(int digit, int x, int y, int size, int[] color)
+        private void AddDigitContours(int digit, int x, int y, int size, int lineWidth, int[] color)
         {
             var segments = DigitSegments(digit);
             var w = Math.Max(4, size / 2);
             var h = Math.Max(7, size);
-            if (segments[0]) AddLine(y, x, y, x + w, color);
-            if (segments[1]) AddLine(y, x + w, y + h / 2, x + w, color);
-            if (segments[2]) AddLine(y + h / 2, x + w, y + h, x + w, color);
-            if (segments[3]) AddLine(y + h, x, y + h, x + w, color);
-            if (segments[4]) AddLine(y + h / 2, x, y + h, x, color);
-            if (segments[5]) AddLine(y, x, y + h / 2, x, color);
-            if (segments[6]) AddLine(y + h / 2, x, y + h / 2, x + w, color);
+            var half = h / 2;
+            if (segments[0]) AddSegment(y, x, y, x + w, lineWidth, color);
+            if (segments[1]) AddSegment(y, x + w, y + half, x + w, lineWidth, color);
+            if (segments[2]) AddSegment(y + half, x + w, y + h, x + w, lineWidth, color);
+            if (segments[3]) AddSegment(y + h, x, y + h, x + w, lineWidth, color);
+            if (segments[4]) AddSegment(y + half, x, y + h, x, lineWidth, color);
+            if (segments[5]) AddSegment(y, x, y + half, x, lineWidth, color);
+            if (segments[6]) AddSegment(y + half, x, y + half, x + w, lineWidth, color);
         }
 
-        private void AddLine(int row1, int col1, int row2, int col2, int[] color)
+        private void AddSegment(int row1, int col1, int row2, int col2, int lineWidth, int[] color)
         {
-            HObject contour = null;
-            HOperatorSet.GenContourPolygonXld(out contour, new HTuple(new double[] { row1, row2 }), new HTuple(new double[] { col1, col2 }));
-            _overlayRegions.Add(contour);
+            if (row1 == row2)
+            {
+                var top = row1 - lineWidth / 2;
+                AddFilledRect(top, Math.Min(col1, col2), top + lineWidth, Math.Max(col1, col2) + lineWidth, color);
+            }
+            else
+            {
+                var left = col1 - lineWidth / 2;
+                AddFilledRect(Math.Min(row1, row2), left, Math.Max(row1, row2) + lineWidth, left + lineWidth, color);
+            }
+        }
+
+        private void AddFilledRect(int top, int left, int bottom, int right, int[] color)
+        {
+            HObject region = null;
+            HOperatorSet.GenRectangle1(out region, top, left, Math.Max(top, bottom - 1), Math.Max(left, right - 1));
+            _overlayRegions.Add(region);
             _overlayColors.Add(color);
         }
 
