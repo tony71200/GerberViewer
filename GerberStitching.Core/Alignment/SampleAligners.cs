@@ -6,7 +6,7 @@ namespace GerberViewer.Stitching.Alignment
     public sealed class HalconNccSampleAligner : ISampleAligner
     {
         private readonly ModalityAwarePreprocessor _preprocessor = new ModalityAwarePreprocessor();
-        private readonly Dictionary<string, object> _modelCache = new Dictionary<string, object>();
+        private readonly Dictionary<string, NccModelHandle> _modelCache = new Dictionary<string, NccModelHandle>();
         public SampleAlignmentResult Align(SampleAlignmentContext context)
         {
             Validate(context); var options = context.Options ?? new SampleAlignmentOptions();
@@ -21,8 +21,9 @@ namespace GerberViewer.Stitching.Alignment
                 return result;
             }
         }
-        private void GetOrCreateNccModel(string id, float[,] sample) { var key = string.IsNullOrEmpty(id) ? "__default" : id; if (!_modelCache.ContainsKey(key)) _modelCache[key] = new object(); }
+        private void GetOrCreateNccModel(string id, float[,] sample) { var key = string.IsNullOrEmpty(id) ? "__default" : id; if (!_modelCache.ContainsKey(key)) _modelCache[key] = NccModelHandle.FromSample(sample); }
         public void Dispose() { _modelCache.Clear(); }
+        private sealed class NccModelHandle { public int Width { get; private set; } public int Height { get; private set; } public static NccModelHandle FromSample(float[,] sample) { if (sample == null) throw new ArgumentNullException("sample"); return new NccModelHandle { Height = sample.GetLength(0), Width = sample.GetLength(1) }; } }
 
         internal static Pose FindBestTranslation(float[,] sample, float[,] captured)
         {
@@ -55,10 +56,10 @@ namespace GerberViewer.Stitching.Alignment
             using (var p = _preprocessor.Preprocess(context.SampleImage, context.CapturedImage, options.Preprocessing))
             {
                 var init = context.InitialCapturedToSampleTransform ?? context.ExpectedCapturedToSampleTransform ?? Homography.Identity();
-                var correlation = HalconNccSampleAligner.Ncc(p.Sample, p.Captured, (int)-init[0,2], (int)-init[1,2]);
-                var r = HalconNccSampleAligner.BuildResult(SampleAlignmentMethod.PyramidEcc, init, double.NaN, correlation, p.Variant, context);
+                var eccProxyScore = HalconNccSampleAligner.Ncc(p.Sample, p.Captured, (int)-init[0,2], (int)-init[1,2]);
+                var r = HalconNccSampleAligner.BuildResult(SampleAlignmentMethod.PyramidEcc, init, double.NaN, eccProxyScore, p.Variant, context);
                 ValidateGeometry(r, options);
-                if (r.Success && correlation < options.EccMinCorrelation) { r.Success = false; r.RejectionReason = "EccCorrelationBelowThreshold"; }
+                if (r.Success && eccProxyScore < options.EccMinCorrelation) { r.Success = false; r.RejectionReason = "EccCorrelationBelowThreshold"; }
                 return r;
             }
         }

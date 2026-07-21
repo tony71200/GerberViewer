@@ -245,5 +245,24 @@
   <li><code>lineWidth</code>: image-coordinate rectangle/segment thickness calculated as <code>max(1, round(2 / CurrentZoom))</code>.</li>
   <li><code>labelSize</code>: image-coordinate order-number size calculated as <code>max(4, round(14 / CurrentZoom))</code>.</li>
 </ul>
+
+<h2>Tab 3 align/stitch workflow variables</h2>
+<ul>
+  <li><code>AlignStitchConfig.InputManifestPath</code>, <code>CapturedFolderPath</code>, and <code>OutputPath</code>: selected manifest, captured-image folder, and user output root; output root is never recursively deleted.</li>
+  <li><code>AlignStitchConfig.NccMinScore</code>, <code>EccMinCorrelation</code>, <code>MaxTranslationPixels</code>, <code>MaxAbsRotationDeg</code>, <code>MinScale</code>, <code>MaxScale</code>, and <code>MinOverlapRatio</code>: direct camera-to-sample acceptance thresholds edited in <code>alignConfigGrid</code>.</li>
+  <li><code>AlignStitchConfig.EnableNeighborRecovery</code>, <code>EnableAnchorInterpolation</code>, <code>AllowExpectedGridFallback</code>, and <code>RequireManualConfirmationForExpectedGrid</code>: recovery controls; production output remains blocked when these paths are unavailable or unverified.</li>
+  <li><code>PathCanvasNode.NodeId</code>: stable UI node identity equal to <code>CapturedImageInfo.OrderIndex</code> and <code>SampleTileInfo.OrderIndex</code> for loaded manifest/captured data.</li>
+  <li><code>PathCanvasSnapshot</code>: immutable paint snapshot used by the WinForms order/status canvas.</li>
+  <li><code>TileWorkflowState.OrderIndex</code> and <code>ProcessingTileReport.OrderIndex</code>: structured diagnostics now carry canonical tile identity in addition to row/column.</li>
+  <li><code>NccModelHandle</code>: explicit NCC model-cache handle metadata replacing fake <code>new object()</code> success placeholders.</li>
+</ul>
+
+<h2>Tab 3 progress tracking variables</h2>
+<ul>
+  <li><code>Tab3TaskTotal</code>: total ordered tasks from the prompt, currently <code>18</code> for Task 0 through Task 17.</li>
+  <li><code>Tab3TasksFullyCompleteInSequence</code>: strict completed count, currently <code>0</code> because Task 0 baseline is not complete.</li>
+  <li><code>Tab3TasksPartial</code>: partial progress count, currently <code>7</code> for Tasks 1, 2, 3, 4, 9, 12, and 13.</li>
+  <li><code>Tab3ProgressSource</code>: <code>docs/tab3_fix_task_results.md</code>.</li>
+</ul>
 </body>
 </html>
