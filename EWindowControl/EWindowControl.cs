@@ -742,6 +742,7 @@ namespace EWindowControl
         }
 
 
+
         /// <summary>
         /// enable/disable double-click image auto-fit image function
         /// </summary>

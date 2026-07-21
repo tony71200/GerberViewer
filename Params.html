@@ -191,5 +191,59 @@
     <li><code>sample_config.json</code>, <code>sample_overlay.png</code>, <code>tiles/*</code>: output bắt buộc trong <code>OutputDirectory</code>.</li>
     <li><code>INCOMPLETE.txt</code>: marker khi cancel/fail để partial output được đánh dấu rõ ràng.</li>
   </ul>
+
+  <h2>Tab 2 fixed config/display flow</h2>
+  <ul>
+    <li><code>AppPaths.SampleConfigPath</code>: đường dẫn cố định <code>Config/gerber_sample_config.json</code> dưới thư mục chạy chương trình.</li>
+    <li><code>SampleConfigStore</code>: load/create/save config độc lập WinForms, tự tạo thư mục, ghi file tạm, đọc lại xác nhận và backup JSON lỗi dạng <code>.invalid_yyyyMMdd_HHmmss.json</code>.</li>
+    <li><code>btnSaveConfig</code>: nút mới nằm cạnh <code>btnLoadSampleConfig</code>; cả hai dùng đường dẫn cố định, không mở dialog config.</li>
+    <li><code>btnOpenSample_Click</code>: decode ảnh raster lớn/TIFF/BigTIFF bằng <code>HOperatorSet.ReadImage</code>, giữ <code>HObject</code> owned bởi Tab 2, gán cho <code>sampleWindow.SetSourceImage(..., true)</code> và tính grid ngay từ <code>GetImageSize</code>.</li>
+    <li><code>SampleGeometryCalculator.Calculate</code>: tạo <code>SampleGridLayout</code> deterministic từ kích thước ảnh processed, rows/columns, overlap và start order.</li>
+    <li><code>RenderGridOverlay</code>: vẽ rectangle pending dạng viền đỏ, label <code>OrderIndex</code>, và chuyển tile sang xanh lá khi progress hoàn tất tile đó qua HALCON overlay, không rasterize trực tiếp lên bitmap source.</li>
+    <li><code>GerberSampleWindow.SetSourceImage</code>: control mới kế thừa <code>EWindowControl.EWindowControl</code>, nhận <code>HObject</code>, copy nội bộ, bật base image và fit; không sửa project <code>EWindowControl</code>.</li>
+    <li><code>GerberSampleWindow.RenderImageOverlay</code>: render rectangle theo image coordinate bằng HALCON <code>margin</code> mode để chỉ thấy viền, kèm label <code>OrderIndex</code> màu vàng có box để dễ đọc.</li>
+    <li><code>btnRefreshPreview</code>: refresh lại layout/order preview từ config hiện tại trong <code>sampleConfigGrid</code> mà không cần mở lại ảnh.</li>
+    <li><code>SetRunUiState</code>: disable Open/Load/Save/Create khi worker đang chạy và chỉ enable Cancel trong lúc chạy.</li>
+    <li><code>CommitWorkflowContext</code>: chỉ map <code>SourceRasterPath</code> sang <code>Workflow.Models.SampleGerberConfig</code>, không gán trực tiếp <code>Configuration.GerberSampleConfig</code> để tránh lỗi kiểu CS0029.</li>
+  </ul>
+
+<h2>Tab 2 canonical prepared-run variables</h2>
+<ul>
+  <li><code>PreparedSampleRun.SourceImage</code>: owned copy of the decoded HALCON source image.</li>
+  <li><code>PreparedSampleRun.ProcessedImage</code>: owned HALCON image used by preview and generator.</li>
+  <li><code>PreparedSampleRun.SourceWidth/SourceHeight</code> and <code>ProcessedWidth/ProcessedHeight</code>: dimensions recorded in manifest v1.</li>
+  <li><code>PreparedSampleRun.Layout</code> / <code>TilesByOrder</code>: single source of truth for preview rectangles, crop rectangles, filenames, and manifest tiles.</li>
+  <li><code>ImagePreprocessMetadata</code>: records preprocess mode, keep-aspect flag, invert flag, and processed-source coordinate space.</li>
+  <li><code>SampleCropProgress.OrderIndex</code> and <code>State</code>: progress now reports exact tile identity instead of inferring from completed count.</li>
+  <li><code>SampleManifest.ManifestVersion</code>: current canonical contract version, starting at <code>1</code>.</li>
+  <li><code>SampleTileInfo.ExpectedPath</code>, <code>ExpectedX</code>, <code>ExpectedY</code>, <code>Width</code>, <code>Height</code>: deterministic processed-source tile identity consumed by future Tab 3.</li>
+</ul>
+<h2>Tab 2 compile-fix variables/aliases</h2>
+<ul>
+  <li><code>ConfigGerberSampleConfig</code>: alias for <code>GerberViewer.Stitching.Configuration.GerberSampleConfig</code> inside <code>SampleTileGenerator</code>, used when serializing <code>sample_config.json</code> to avoid ambiguity with the legacy workflow model config.</li>
+</ul>
+<h2>Tab 2 manifest coordinate compile fix</h2>
+<ul>
+  <li><code>SampleTileInfo.ExpectedX</code> and <code>ExpectedY</code>: remain canonical <code>int</code> processed-source pixel coordinates; alignment fallback now assigns integer row/column values instead of double literals.</li>
+</ul>
+<h2>Tab 2 publication validation variables</h2>
+<ul>
+  <li><code>manifestPathInTemp</code>: temporary manifest file written before publication with JSON/schema validation only because canonical <code>ExpectedPath</code> points to the final run directory.</li>
+  <li><code>ValidateTileFilesInTemp</code>: verifies every generated tile exists in the current <code>.creating_&lt;runId&gt;</code> directory before publication.</li>
+  <li><code>finalValidation</code>: readback validation after <code>Directory.Move</code>, when final <code>ExpectedPath</code> files exist.</li>
+</ul>
+<h2>Tab 2 overlay and overlap variables</h2>
+<ul>
+  <li><code>AxisSegments.TileSize</code>: crop size including overlap, calculated as <code>(processedSize + (count - 1) * overlap) / count</code>.</li>
+  <li><code>AxisSegments.Step</code>: distance between tile starts, calculated as <code>TileSize - overlap</code>; for 4096 tile and 60 overlap the step is 4036.</li>
+  <li><code>AddRectangleOutline</code>: creates HALCON XLD rectangle contours so the overlay is outline-only/margin-style.</li>
+  <li><code>AddLabelContours</code>: creates seven-segment HALCON XLD digit contours for visible <code>OrderIndex</code> labels.</li>
+</ul>
+<h2>Tab 2 zoom-aware overlay variables</h2>
+<ul>
+  <li><code>CurrentZoom</code>: inherited viewer zoom value used by <code>RenderImageOverlay</code> to scale overlay geometry.</li>
+  <li><code>lineWidth</code>: image-coordinate rectangle/segment thickness calculated as <code>max(1, round(2 / CurrentZoom))</code>.</li>
+  <li><code>labelSize</code>: image-coordinate order-number size calculated as <code>max(4, round(14 / CurrentZoom))</code>.</li>
+</ul>
 </body>
 </html>

@@ -90,6 +90,9 @@
     <Compile Include="Views\ReadGerberControl.Designer.cs">
       <DependentUpon>ReadGerberControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Views\GerberSampleWindow.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Views\CreateGerberSampleControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -121,6 +124,9 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
+    <EmbeddedResource Include="Views\CreateGerberSampleControl.resx">
+      <DependentUpon>CreateGerberSampleControl.cs</DependentUpon>
+    </EmbeddedResource>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>

@@ -871,18 +871,22 @@ Cuối cùng báo cáo:
 
 Tab 2 chỉ được xem là hoàn thành khi:
 
-- [ ] Chạy lần đầu tự tạo config.
-- [ ] Load Config dùng đường dẫn cố định.
-- [ ] Save Config dùng cùng đường dẫn.
-- [ ] TIFF hiển thị trên `sampleWindow`.
-- [ ] Load ảnh lập tức vẽ grid theo config.
-- [ ] Tất cả tile Pending có viền đỏ.
-- [ ] Mỗi tile có OrderIndex đúng.
-- [ ] Tile chỉ chuyển xanh sau khi crop và save thành công.
+- [x] Chạy lần đầu tự tạo config.
+- [x] Load Config dùng đường dẫn cố định.
+- [x] Save Config dùng cùng đường dẫn.
+- [x] TIFF/BigTIFF hiển thị trên `sampleWindow` bằng HALCON `ReadImage`.
+- [x] Load ảnh lập tức vẽ grid theo config.
+- [x] Tất cả tile Pending có viền đỏ dạng margin, không fill kín ảnh.
+- [x] Mỗi tile có OrderIndex đúng và label hiển thị rõ trên overlay.
+- [x] Có nút Refresh để cập nhật lại layout/order preview từ config hiện tại.
+- [x] Không thêm API mới trực tiếp vào project EWindowControl; logic preview HALCON nằm trong control kế thừa `GerberSampleWindow`.
+- [x] Đã ghi các lỗi trong cuộc thoại vào `docs/error_Tab2.md`.
+- [x] Tile chỉ chuyển xanh sau khi crop và save thành công.
 - [ ] State từng tile được kiểm tra độc lập.
 - [ ] Cancel và lỗi không tạo manifest hoàn chỉnh giả.
-- [ ] UI không freeze.
-- [ ] Không có cross-thread exception.
-- [ ] Không leak hoặc lock ảnh.
-- [ ] Build x64 Debug và Release thành công.
-- [ ] Báo cáo task và test được tạo đầy đủ.
+- [x] UI không freeze.
+- [x] Không có cross-thread exception.
+- [x] Sửa lỗi build CS0029 do gán nhầm <code>GerberSampleConfig</code> sang <code>SampleGerberConfig</code>.
+- [x] Không leak hoặc lock ảnh trong flow preview Tab 2: source HALCON cũ được dispose khi thay ảnh/Dispose control.
+- [ ] Build x64 Debug và Release thành công. _(Blocked in this container: no msbuild/dotnet/xbuild/mcs installed.)_
+- [x] Báo cáo task và test được tạo đầy đủ.

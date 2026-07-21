@@ -58,6 +58,11 @@
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="halcondotnetxl, Version=25.5.0.1, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\EWindowControl\dll\halcondotnetxl.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Xml.Serialization" />
@@ -72,8 +77,13 @@
     <Compile Include="Stitching\GlobalTransformStitcher.cs" />
     <Compile Include="Arrangement\NaturalSortService.cs" />
     <Compile Include="Arrangement\CapturedImageLoader.cs" />
+    <Compile Include="Configuration\AppPaths.cs" />
     <Compile Include="Configuration\GerberSampleConfig.cs" />
+    <Compile Include="Configuration\SampleConfigStore.cs" />
+    <Compile Include="Imaging\SampleGridGeometry.cs" />
+    <Compile Include="Imaging\PreparedSampleRun.cs" />
     <Compile Include="Imaging\SampleTileGenerator.cs" />
+    <Compile Include="Models\SampleManifest.cs" />
     <Compile Include="Models\WorkflowModels.cs" />
     <Compile Include="RobotManager\Domain.cs" />
     <Compile Include="RobotManager\RobotArrange.cs" />

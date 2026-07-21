@@ -1,31 +1,52 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Runtime.Serialization;
 using GerberViewer.Stitching.RobotManager;
 
 namespace GerberViewer.Stitching.Configuration
 {
+    [DataContract]
     public enum OverlapUnit { Pixel = 0, Percent = 1 }
+    [DataContract]
     public enum SamplePreprocessMode { None = 0, Resize = 1, FitPad = 2, CenterCrop = 3 }
+    [DataContract]
     public enum SampleOutputFormat { Png = 0, Bmp = 1, Jpeg = 2 }
 
+    [DataContract]
     public sealed class GerberSampleConfig
     {
+        [DataMember]
         public string SourceRasterPath { get; set; }
+        [DataMember]
         public string OutputDirectory { get; set; }
+        [DataMember]
         public int Rows { get; set; } = 1;
+        [DataMember]
         public int Columns { get; set; } = 1;
+        [DataMember]
         public OrderMode CropOrder { get; set; } = OrderMode.Zigzag;
+        [DataMember]
         public StartOrder StartOrder { get; set; } = StartOrder.TopLeftRight;
+        [DataMember]
         public bool InvertImage { get; set; } = false;
+        [DataMember]
         public double OverlapValue { get; set; } = 60;
+        [DataMember]
         public OverlapUnit OverlapUnit { get; set; } = OverlapUnit.Pixel;
+        [DataMember]
         public SamplePreprocessMode PreprocessMode { get; set; } = SamplePreprocessMode.None;
+        [DataMember]
         public bool KeepAspectRatio { get; set; } = true;
+        [DataMember]
         public SampleOutputFormat OutputFormat { get; set; } = SampleOutputFormat.Png;
+        [DataMember]
         public string TileNamePattern { get; set; } = "Sample_R{row:00}_C{col:00}_O{order:000}";
+        [DataMember]
         public int ProcessedWidth { get; set; }
+        [DataMember]
         public int ProcessedHeight { get; set; }
+        [IgnoreDataMember]
         public Color PadColor { get; set; } = Color.White;
     }
 
