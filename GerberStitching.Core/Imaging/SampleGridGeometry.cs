@@ -38,13 +38,13 @@ namespace GerberViewer.Stitching.Imaging
             if (!validation.IsValid) throw new InvalidOperationException(string.Join(Environment.NewLine, validation.Errors));
             double ox = config.OverlapUnit == OverlapUnit.Percent ? processedWidth / (double)config.Columns * config.OverlapValue / 100.0 : config.OverlapValue;
             double oy = config.OverlapUnit == OverlapUnit.Percent ? processedHeight / (double)config.Rows * config.OverlapValue / 100.0 : config.OverlapValue;
-            var x = Boundaries(processedWidth, config.Columns, ox); var y = Boundaries(processedHeight, config.Rows, oy);
+            var x = AxisSegments(processedWidth, config.Columns, ox); var y = AxisSegments(processedHeight, config.Rows, oy);
             var coords = PhysicalOrder(config).ToList();
-            var layout = new SampleGridLayout { Rows = config.Rows, Columns = config.Columns, TileWidth = x.Length > 1 ? x[1] - x[0] : processedWidth, TileHeight = y.Length > 1 ? y[1] - y[0] : processedHeight, StepX = x.Length > 2 ? x[2] - x[1] : 0, StepY = y.Length > 2 ? y[2] - y[1] : 0 };
+            var layout = new SampleGridLayout { Rows = config.Rows, Columns = config.Columns, TileWidth = x.TileSize, TileHeight = y.TileSize, StepX = x.Step, StepY = y.Step };
             for (int i = 0; i < coords.Count; i++)
             {
                 var p = coords[i];
-                layout.Tiles.Add(new SampleTileLayout { Row = p.Item1, Column = p.Item2, OrderIndex = i, Rectangle = Rectangle.FromLTRB(x[p.Item2], y[p.Item1], x[p.Item2 + 1], y[p.Item1 + 1]), Predecessor = i == 0 ? (int?)null : i - 1, Successor = i + 1 == coords.Count ? (int?)null : i + 1, Status = SampleTileState.Pending });
+                layout.Tiles.Add(new SampleTileLayout { Row = p.Item1, Column = p.Item2, OrderIndex = i, Rectangle = Rectangle.FromLTRB(x.Starts[p.Item2], y.Starts[p.Item1], x.Ends[p.Item2], y.Ends[p.Item1]), Predecessor = i == 0 ? (int?)null : i - 1, Successor = i + 1 == coords.Count ? (int?)null : i + 1, Status = SampleTileState.Pending });
             }
             return layout;
         }
@@ -62,6 +62,24 @@ namespace GerberViewer.Stitching.Imaging
                 for (int rr = 0; rr < c.Rows; rr++) { int row = reverseRows ? c.Rows - 1 - rr : rr; var cols = Enumerable.Range(0, c.Columns).Select(col => reverseCols ? c.Columns - 1 - col : col).ToList(); if (c.CropOrder == OrderMode.Zigzag && rr % 2 == 1) cols.Reverse(); foreach (var col in cols) yield return Tuple.Create(row, col); }
             }
         }
-        private static int[] Boundaries(int size, int count, double overlap) { var b = new int[count + 1]; b[0] = 0; b[count] = size; var tile = (size + (count - 1) * overlap) / count; for (int i = 1; i < count; i++) b[i] = Math.Max(0, Math.Min(size, (int)Math.Round(i * (tile - overlap)))); return b; }
+        private sealed class AxisSegmentsResult { public int[] Starts; public int[] Ends; public int TileSize; public int Step; }
+        private static AxisSegmentsResult AxisSegments(int size, int count, double overlap)
+        {
+            var starts = new int[count]; var ends = new int[count];
+            if (count <= 1) return new AxisSegmentsResult { Starts = new[] { 0 }, Ends = new[] { size }, TileSize = size, Step = 0 };
+            var tile = (size + (count - 1) * overlap) / count;
+            var step = tile - overlap;
+            var tileSize = Math.Max(1, (int)Math.Round(tile));
+            var stepSize = Math.Max(1, (int)Math.Round(step));
+            for (int i = 0; i < count; i++)
+            {
+                var start = (int)Math.Round(i * step);
+                var end = start + tileSize;
+                if (i == count - 1) { end = size; start = Math.Max(0, end - tileSize); }
+                starts[i] = Math.Max(0, Math.Min(size - 1, start));
+                ends[i] = Math.Max(starts[i] + 1, Math.Min(size, end));
+            }
+            return new AxisSegmentsResult { Starts = starts, Ends = ends, TileSize = tileSize, Step = stepSize };
+        }
     }
 }
