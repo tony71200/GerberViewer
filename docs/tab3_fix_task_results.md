@@ -8,17 +8,17 @@ The ordered plan in `docs/Codex_Prompt_Fix_Tab3_implement.md` contains 18 tasks:
 
 Strict status after commit `6025eaf Implement truthful Tab 3 workflow shell`:
 
-- Fully complete in sequence: 0 / 18
+- Fully complete in sequence: 1 / 18
 - Partially implemented out of sequence: 7 / 18
-- Not started or only blocked/documented: 11 / 18
+- Not started or only blocked/documented: 10 / 18
 
-Reason: Task 0 requires a baseline document before runtime behavior changes. That baseline document was not created before the previous implementation commit, so under the prompt's strict ordered workflow no task can honestly be marked fully complete yet. The previous commit did implement useful partial work for later tasks, but that work must be treated as partial progress until Task 0 is completed and builds/tests are run.
+Reason: Task 0 is now complete as a documentation-only baseline audit in `docs/tab3_implementation_baseline.md`. Later implementation work from the previous commit remains partial until the missing build/test gates and task-specific requirements are completed in order.
 
 ## Ordered checklist
 
 | Task | Status | Files changed | Debug x64 | Release x64 | Tests | Notes |
 |---|---|---|---|---|---|---|
-| Task 0 — Baseline audit and protection | Not complete | None for required baseline document | Not run: `msbuild` unavailable | Not run: `msbuild` unavailable | Not run | Required `docs/tab3_implementation_baseline.md` was not created before behavior changes. |
+| Task 0 — Baseline audit and protection | Complete | `docs/tab3_implementation_baseline.md` | Not verified: `msbuild` unavailable | Not verified: `msbuild` unavailable | Baseline audit only | Baseline records UI/alignment/recovery/stitching call graphs, stubs, transforms, ownership, Bitmap allocations, UI-thread risks, build status, and reference files. |
 | Task 1 — Update scope rules and canonical models | Partial | `GerberStitching.Core/Models/WorkflowModels.cs` | Not run: `msbuild` unavailable | Not run: `msbuild` unavailable | Static review only | Added config/report state fields, but duplicate `AlignStitchConfig` in `GerberViewer/Workflow/Models/WorkflowContext.cs` remains unconsolidated. |
 | Task 2 — Manifest selection and input UI | Partial | `GerberViewer/Views/AlignStitchingControl.cs`, `GerberViewer/Views/AlignStitchingControl.Designer.cs`, `GerberStitching.Core/Arrangement/CapturedImageLoader.cs` | Not run: `msbuild` unavailable | Not run: `msbuild` unavailable | Static review only | Manifest selection, shared validation, derived display, captured/output folders, and run gating were added; relocation policy is incomplete. |
 | Task 3 — ELog integration | Partial | `GerberViewer/Views/AlignStitchingControl.cs`, `GerberViewer/Views/AlignStitchingControl.Designer.cs` | Not run: `msbuild` unavailable | Not run: `msbuild` unavailable | Static review only | Log ListBox/file logging were added; processing log copy/export and cross-thread logging tests are not complete. |
@@ -39,4 +39,4 @@ Reason: Task 0 requires a baseline document before runtime behavior changes. Tha
 
 ## Immediate next step
 
-Complete Task 0 first by creating `docs/tab3_implementation_baseline.md`, recording the current call graphs, fake/stub methods, transform directions, image ownership, Bitmap allocations, UI-thread risks, reference files used, and honest build status.
+Continue with Task 1 next: consolidate scope/canonical models, especially duplicate `AlignStitchConfig` contracts, while preserving manifest compatibility and C# 7.3/.NET Framework 4.8 compatibility.
