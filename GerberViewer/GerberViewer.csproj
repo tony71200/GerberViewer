@@ -87,6 +87,9 @@
     <Compile Include="Views\CreateGerberSampleControl.Designer.cs">
       <DependentUpon>CreateGerberSampleControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Stitching\PathCanvasControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Views\AlignStitchingControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -94,6 +97,8 @@
       <DependentUpon>AlignStitchingControl.cs</DependentUpon>
     </Compile>
     <Compile Include="Workflow\Models\WorkflowContext.cs" />
+    <Compile Include="Workflow\HalconRuntimeValidator.cs" />
+    <Compile Include="Views\ManualAlignmentDialog.cs"><SubType>Form</SubType></Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
@@ -126,6 +131,10 @@
     <ProjectReference Include="..\EWindowControl\EWindowControl.csproj">
       <Project>{327b1a7b-56a9-4101-93dc-d2d5d9b82ab0}</Project>
       <Name>EWindowControl</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GerberStitching.Core\GerberStitching.Core.csproj">
+      <Project>{a9ebae59-cc60-4a29-b248-9b3779c20f57}</Project>
+      <Name>GerberStitching.Core</Name>
     </ProjectReference>
     <ProjectReference Include="..\GerberEngine\GerberEngine.csproj">
       <Project>{e8cd28fa-da0b-4f1c-b301-267be64c0513}</Project>
