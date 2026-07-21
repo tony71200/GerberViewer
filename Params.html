@@ -232,5 +232,12 @@
   <li><code>ValidateTileFilesInTemp</code>: verifies every generated tile exists in the current <code>.creating_&lt;runId&gt;</code> directory before publication.</li>
   <li><code>finalValidation</code>: readback validation after <code>Directory.Move</code>, when final <code>ExpectedPath</code> files exist.</li>
 </ul>
+<h2>Tab 2 overlay and overlap variables</h2>
+<ul>
+  <li><code>AxisSegments.TileSize</code>: crop size including overlap, calculated as <code>(processedSize + (count - 1) * overlap) / count</code>.</li>
+  <li><code>AxisSegments.Step</code>: distance between tile starts, calculated as <code>TileSize - overlap</code>; for 4096 tile and 60 overlap the step is 4036.</li>
+  <li><code>AddRectangleOutline</code>: creates HALCON XLD rectangle contours so the overlay is outline-only/margin-style.</li>
+  <li><code>AddLabelContours</code>: creates seven-segment HALCON XLD digit contours for visible <code>OrderIndex</code> labels.</li>
+</ul>
 </body>
 </html>
