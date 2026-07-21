@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GerberViewer.Stitching.Configuration;
 using GerberViewer.Stitching.Models;
+using ConfigGerberSampleConfig = GerberViewer.Stitching.Configuration.GerberSampleConfig;
 using HalconDotNet;
 
 namespace GerberViewer.Stitching.Imaging
@@ -99,9 +100,9 @@ namespace GerberViewer.Stitching.Imaging
             };
         }
 
-        private static void WriteConfig(string path, GerberSampleConfig config)
+        private static void WriteConfig(string path, ConfigGerberSampleConfig config)
         {
-            using (var stream = File.Create(path)) new DataContractJsonSerializer(typeof(GerberSampleConfig)).WriteObject(stream, config);
+            using (var stream = File.Create(path)) new DataContractJsonSerializer(typeof(ConfigGerberSampleConfig)).WriteObject(stream, config);
         }
 
         private static void SafeCleanTemp(string temp, string marker)
