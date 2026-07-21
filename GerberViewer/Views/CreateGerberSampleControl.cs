@@ -113,7 +113,8 @@ namespace GerberViewer.Views
         {
             if (WorkflowContext == null) return;
             WorkflowContext.SampleRasterPath = _sampleConfig.SourceRasterPath;
-            WorkflowContext.SampleConfig = _sampleConfig;
+            if (WorkflowContext.SampleConfig == null) WorkflowContext.SampleConfig = new SampleGerberConfig();
+            WorkflowContext.SampleConfig.SourceRasterPath = _sampleConfig.SourceRasterPath;
             WorkflowContext.NotifyChanged();
         }
         private void ReplaceSampleImage(Bitmap decoded, string path)

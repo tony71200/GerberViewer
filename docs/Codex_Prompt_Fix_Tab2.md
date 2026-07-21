@@ -883,6 +883,7 @@ Tab 2 chỉ được xem là hoàn thành khi:
 - [ ] Cancel và lỗi không tạo manifest hoàn chỉnh giả.
 - [x] UI không freeze.
 - [x] Không có cross-thread exception.
+- [x] Sửa lỗi build CS0029 do gán nhầm <code>GerberSampleConfig</code> sang <code>SampleGerberConfig</code>.
 - [ ] Không leak hoặc lock ảnh.
 - [ ] Build x64 Debug và Release thành công. _(Blocked in this container: no msbuild/dotnet/xbuild/mcs installed.)_
 - [x] Báo cáo task và test được tạo đầy đủ.

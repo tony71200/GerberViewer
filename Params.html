@@ -201,6 +201,7 @@
     <li><code>SampleGeometryCalculator.Calculate</code>: tạo <code>SampleGridLayout</code> deterministic từ kích thước ảnh processed, rows/columns, overlap và start order.</li>
     <li><code>RenderGridOverlay</code>: vẽ rectangle pending màu đỏ, label <code>OrderIndex</code>, và chuyển tile sang xanh lá khi progress hoàn tất tile đó.</li>
     <li><code>SetRunUiState</code>: disable Open/Load/Save/Create khi worker đang chạy và chỉ enable Cancel trong lúc chạy.</li>
+    <li><code>CommitWorkflowContext</code>: chỉ map <code>SourceRasterPath</code> sang <code>Workflow.Models.SampleGerberConfig</code>, không gán trực tiếp <code>Configuration.GerberSampleConfig</code> để tránh lỗi kiểu CS0029.</li>
   </ul>
 
 </body>
