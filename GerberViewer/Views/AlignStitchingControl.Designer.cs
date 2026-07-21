@@ -196,7 +196,7 @@ namespace GerberViewer.Views
             this.tabDiagnostics.Controls.Add(this.txtDiagnostics);
             this.tabDiagnostics.Location = new System.Drawing.Point(8, 39);
             this.tabDiagnostics.Name = "tabDiagnostics";
-            this.tabDiagnostics.Size = new System.Drawing.Size(512, 372);
+            this.tabDiagnostics.Size = new System.Drawing.Size(772, 454);
             this.tabDiagnostics.TabIndex = 1;
             this.tabDiagnostics.Text = "Alignment Diagnostics";
             // 
@@ -207,7 +207,7 @@ namespace GerberViewer.Views
             this.txtDiagnostics.Multiline = true;
             this.txtDiagnostics.Name = "txtDiagnostics";
             this.txtDiagnostics.ReadOnly = true;
-            this.txtDiagnostics.Size = new System.Drawing.Size(512, 372);
+            this.txtDiagnostics.Size = new System.Drawing.Size(772, 454);
             this.txtDiagnostics.TabIndex = 0;
             this.txtDiagnostics.Text = "OrderIndex, Row/Column, paths, NCC, ECC, CapturedToSampleTransform, pose source a" +
     "nd rejection reason appear in logs/report.";
