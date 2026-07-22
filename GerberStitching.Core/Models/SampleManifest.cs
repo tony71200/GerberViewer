@@ -11,7 +11,7 @@ namespace GerberViewer.Stitching.Models
     [DataContract]
     public sealed class SampleManifest
     {
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
         [DataMember(Order = 1)] public int ManifestVersion { get; set; }
         [DataMember(Order = 2)] public string RootDirectory { get; set; }
         [DataMember(Order = 3)] public string SourceRasterPath { get; set; }
@@ -23,6 +23,11 @@ namespace GerberViewer.Stitching.Models
         [DataMember(Order = 9)] public string StartOrder { get; set; }
         [DataMember(Order = 10)] public List<SampleTileInfo> Tiles { get; set; }
         [DataMember(Order = 11)] public DateTime CreatedUtc { get; set; }
+        [DataMember(Order = 12, EmitDefaultValue = false)] public string ProcessedSamplePath { get; set; }
+        [DataMember(Order = 13, EmitDefaultValue = false)] public double[][] SourceToProcessedTransform { get; set; }
+        [DataMember(Order = 14, EmitDefaultValue = false)] public string PreprocessMode { get; set; }
+        [DataMember(Order = 15)] public int ProcessedChannelCount { get; set; }
+        [DataMember(Order = 16)] public int ProcessedBitDepth { get; set; }
     }
 
     [DataContract]
@@ -71,10 +76,18 @@ namespace GerberViewer.Stitching.Models
         {
             var result = new SampleManifestValidationResult();
             if (manifest == null) { result.Errors.Add("Manifest is null."); return result; }
-            if (manifest.ManifestVersion != SampleManifest.CurrentVersion) result.Errors.Add("Unsupported ManifestVersion: " + manifest.ManifestVersion + ".");
+            if (manifest.ManifestVersion <= 0) result.Errors.Add("ManifestVersion is required.");
+            else if (manifest.ManifestVersion > SampleManifest.CurrentVersion) result.Errors.Add("Unsupported ManifestVersion: " + manifest.ManifestVersion + ".");
             if (string.IsNullOrWhiteSpace(manifest.RootDirectory)) result.Errors.Add("RootDirectory is required.");
             if (manifest.ProcessedWidth <= 0 || manifest.ProcessedHeight <= 0) result.Errors.Add("Processed dimensions must be positive.");
             if (manifest.SourceWidth <= 0 || manifest.SourceHeight <= 0) result.Errors.Add("Source dimensions must be positive.");
+            if (manifest.ManifestVersion >= 2)
+            {
+                if (manifest.ProcessedChannelCount < 0) result.Errors.Add("ProcessedChannelCount must not be negative.");
+                if (manifest.ProcessedBitDepth < 0) result.Errors.Add("ProcessedBitDepth must not be negative.");
+                if (manifest.SourceToProcessedTransform != null && !IsValidTransform(manifest.SourceToProcessedTransform)) result.Errors.Add("SourceToProcessedTransform must be a finite 3x3 affine matrix.");
+                if (requireFiles && !string.IsNullOrWhiteSpace(manifest.ProcessedSamplePath) && !File.Exists(manifest.ProcessedSamplePath)) result.Errors.Add("ProcessedSamplePath unreadable/missing: " + manifest.ProcessedSamplePath);
+            }
             if (manifest.Tiles == null || manifest.Tiles.Count == 0) { result.Errors.Add("Tiles must not be empty."); return result; }
             var orders = new HashSet<int>(); var cells = new HashSet<string>();
             foreach (var t in manifest.Tiles)
@@ -93,6 +106,17 @@ namespace GerberViewer.Stitching.Models
             }
             for (int i = 0; i < manifest.Tiles.Count; i++) if (!orders.Contains(i)) result.Errors.Add("Missing OrderIndex: " + i + ".");
             return result;
+        }
+
+        private static bool IsValidTransform(double[][] h)
+        {
+            if (h == null || h.Length != 3) return false;
+            for (int r = 0; r < 3; r++)
+            {
+                if (h[r] == null || h[r].Length != 3) return false;
+                for (int c = 0; c < 3; c++) if (double.IsNaN(h[r][c]) || double.IsInfinity(h[r][c])) return false;
+            }
+            return Math.Abs(h[2][0]) < 1e-12 && Math.Abs(h[2][1]) < 1e-12 && Math.Abs(h[2][2] - 1.0) < 1e-12;
         }
     }
 }

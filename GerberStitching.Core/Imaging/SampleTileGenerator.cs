@@ -53,6 +53,7 @@ namespace GerberViewer.Stitching.Imaging
                     VerifyImageReadable(path);
                     progress?.Report(new SampleCropProgress { Completed = tile.OrderIndex + 1, Total = total, OrderIndex = tile.OrderIndex, State = SampleTileState.Completed, Message = fileName });
                 }
+                WriteProcessedSample(Path.Combine(temp, "processed_sample.png"), run.ProcessedImage);
                 WriteConfig(Path.Combine(temp, "sample_config.json"), run.ConfigSnapshot);
                 var manifest = BuildManifest(run, final);
                 ValidateTileFilesInTemp(run, temp);
@@ -110,8 +111,48 @@ namespace GerberViewer.Stitching.Imaging
                 CropOrder = run.ConfigSnapshot.CropOrder.ToString(),
                 StartOrder = run.ConfigSnapshot.StartOrder.ToString(),
                 CreatedUtc = DateTime.UtcNow,
+                ProcessedSamplePath = Path.Combine(finalRoot, "processed_sample.png"),
+                SourceToProcessedTransform = SourceToProcessedTransform(run),
+                PreprocessMode = run.PreprocessMetadata == null ? null : run.PreprocessMetadata.Mode.ToString(),
+                ProcessedChannelCount = CountChannels(run.ProcessedImage),
+                ProcessedBitDepth = BitDepth(run.ProcessedImage),
                 Tiles = run.TilesByOrder.Select(t => new SampleTileInfo { OrderIndex = t.OrderIndex, Row = t.Row, Column = t.Column, ExpectedPath = Path.Combine(finalRoot, "tiles", FormatName(run.ConfigSnapshot.TileNamePattern, t.Row, t.Column, t.OrderIndex) + ExtensionFor(run.ConfigSnapshot.OutputFormat)), ExpectedX = t.Rectangle.X, ExpectedY = t.Rectangle.Y, Width = t.Rectangle.Width, Height = t.Rectangle.Height }).ToList()
             };
+        }
+
+        private static void WriteProcessedSample(string path, HObject processedImage)
+        {
+            HOperatorSet.WriteImage(processedImage, "png", 0, path);
+            VerifyImageReadable(path);
+        }
+
+        private static double[][] SourceToProcessedTransform(PreparedSampleRun run)
+        {
+            var sx = run.SourceWidth == 0 ? 1.0 : (double)run.ProcessedWidth / run.SourceWidth;
+            var sy = run.SourceHeight == 0 ? 1.0 : (double)run.ProcessedHeight / run.SourceHeight;
+            return new[] { new[] { sx, 0d, 0d }, new[] { 0d, sy, 0d }, new[] { 0d, 0d, 1d } };
+        }
+
+        private static int CountChannels(HObject image)
+        {
+            HTuple channels = null;
+            try { HOperatorSet.CountChannels(image, out channels); return channels.I; }
+            finally { if (channels != null) channels.Dispose(); }
+        }
+
+        private static int BitDepth(HObject image)
+        {
+            HTuple type = null;
+            try
+            {
+                HOperatorSet.GetImageType(image, out type);
+                var value = type.S;
+                if (value == "byte") return 8;
+                if (value == "uint2" || value == "int2") return 16;
+                if (value == "int4" || value == "real") return 32;
+                return 0;
+            }
+            finally { if (type != null) type.Dispose(); }
         }
 
         private static void WriteConfig(string path, ConfigGerberSampleConfig config)

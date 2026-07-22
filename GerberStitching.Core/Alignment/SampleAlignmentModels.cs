@@ -70,6 +70,9 @@ namespace GerberViewer.Stitching.Alignment
         public double OverlapRatio { get; set; } = double.NaN;
         public SampleAlignmentMethod Method { get; set; }
         public string PreprocessingVariant { get; set; }
+        public string PipelineStage { get; set; }
+        public string NccFailureReason { get; set; }
+        public string EccFailureReason { get; set; }
         public string RejectionReason { get; set; }
         public string Warning { get; set; }
         public IDictionary<string, Bitmap> DiagnosticImages { get; private set; } = new Dictionary<string, Bitmap>();
