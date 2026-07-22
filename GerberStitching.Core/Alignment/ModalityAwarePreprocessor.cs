@@ -25,6 +25,11 @@ namespace GerberViewer.Stitching.Alignment
 
     public sealed class ModalityAwarePreprocessor
     {
+        // Temporary NCC investigation switch: keep normalized/polarity-adjusted Mono8 images
+        // intact and skip threshold/edge preprocessing that can remove gray-level texture
+        // needed by HALCON NCC.
+        private const bool SkipThresholdAndEdgePreparation = true;
+
         private readonly IImageInteropService _imageInterop;
 
         public ModalityAwarePreprocessor() : this(new ImageInteropService())
@@ -67,11 +72,14 @@ namespace GerberViewer.Stitching.Alignment
                 Normalize(sampleMat, options.ContrastNormalization);
                 Normalize(capturedMat, options.ContrastNormalization);
                 ApplyPolarity(sampleMat, capturedMat, polarity);
-                Threshold(sampleMat, options);
-                Threshold(capturedMat, options);
-                if (options.ApplyGerberContentMask) ApplyContentMask(sampleMat, capturedMat);
-                PrepareEdges(ref sampleMat, options.EdgePreparation);
-                PrepareEdges(ref capturedMat, options.EdgePreparation);
+                if (!SkipThresholdAndEdgePreparation)
+                {
+                    Threshold(sampleMat, options);
+                    Threshold(capturedMat, options);
+                    if (options.ApplyGerberContentMask) ApplyContentMask(sampleMat, capturedMat);
+                    PrepareEdges(ref sampleMat, options.EdgePreparation);
+                    PrepareEdges(ref capturedMat, options.EdgePreparation);
+                }
 
                 var result = new PreprocessedAlignmentImages
                 {
@@ -97,7 +105,10 @@ namespace GerberViewer.Stitching.Alignment
 
         private static string BuildVariant(PreprocessingOptions o, string polarityVariant)
         {
-            return string.Format("opencv-gray+{0}+{1}+threshold:{2}+edge:{3}+mask:{4}+size:{5}x{6}", o.ContrastNormalization, polarityVariant, o.Threshold, o.EdgePreparation, o.ApplyGerberContentMask, o.NormalizedWidth, o.NormalizedHeight);
+            var threshold = SkipThresholdAndEdgePreparation ? "disabled-temporary" : o.Threshold.ToString();
+            var edge = SkipThresholdAndEdgePreparation ? "disabled-temporary" : o.EdgePreparation.ToString();
+            var mask = SkipThresholdAndEdgePreparation ? "disabled-temporary" : o.ApplyGerberContentMask.ToString();
+            return string.Format("opencv-gray+{0}+{1}+threshold:{2}+edge:{3}+mask:{4}+size:{5}x{6}", o.ContrastNormalization, polarityVariant, threshold, edge, mask, o.NormalizedWidth, o.NormalizedHeight);
         }
 
         private static void ResizeIfRequested(ref Mat image, int width, int height)
