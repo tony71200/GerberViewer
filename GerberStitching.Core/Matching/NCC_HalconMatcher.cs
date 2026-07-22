@@ -43,8 +43,7 @@ namespace GerberViewer.Stitching.Matching
                 return WithTime(MatchResult.Failed(MatcherName, MatchFailureReason.Cancelled, "HALCON NCC was cancelled before start."), sw);
             var invalid = _validator.ValidateRequest(request, MatcherName);
             if (invalid != null) return WithTime(invalid, sw);
-            //var options = request.Options ?? new MatcherOptions();
-            var options = new MatcherOptions();
+            var options = request.Options ?? new MatcherOptions();
             HTuple row = null;
             HTuple column = null;
             HTuple angle = null;
@@ -89,6 +88,7 @@ namespace GerberViewer.Stitching.Matching
                         RawScore = bestScore,
                         NormalizedConfidence = bestScore,
                         OverlapRatio = 1d,
+                        AlignedMovingImage = WarpMovingToReference(request.MovingImage, movingToReference, request.ReferenceImage.Size()),
                         FailureReason = MatchFailureReason.None
                     };
                     result.Diagnostics["HalconCreateOperator"] = "create_ncc_model";
@@ -301,6 +301,27 @@ namespace GerberViewer.Stitching.Matching
             return string.Format(CultureInfo.InvariantCulture, "Rows={0}, Cols={1}, Type={2}, Channels={3}, ContentHash={4}", image.Rows, image.Cols, image.Type(), image.Channels(), CalculateMatContentHash(image));
         }
 #endif
+
+        private static Mat WarpMovingToReference(Mat movingImage, Transform2D movingToReference, OpenCvSharp.Size referenceSize)
+        {
+            var warp = new Mat(2, 3, MatType.CV_64FC1);
+            try
+            {
+                warp.Set<double>(0, 0, movingToReference[0, 0]);
+                warp.Set<double>(0, 1, movingToReference[0, 1]);
+                warp.Set<double>(0, 2, movingToReference[0, 2]);
+                warp.Set<double>(1, 0, movingToReference[1, 0]);
+                warp.Set<double>(1, 1, movingToReference[1, 1]);
+                warp.Set<double>(1, 2, movingToReference[1, 2]);
+                var aligned = new Mat();
+                Cv2.WarpAffine(movingImage, aligned, warp, referenceSize, InterpolationFlags.Linear, BorderTypes.Constant, Scalar.All(0));
+                return aligned;
+            }
+            finally
+            {
+                warp.Dispose();
+            }
+        }
 
         private MatchResult ValidateNccGeometry(Transform2D movingToReference, Mat referenceImage, Mat movingImage, MatcherOptions options)
         {

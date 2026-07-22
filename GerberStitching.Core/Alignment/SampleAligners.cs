@@ -19,7 +19,22 @@ namespace GerberViewer.Stitching.Alignment
             if (context.Options == null) context.Options = new SampleAlignmentOptions();
             var original = context.Options.AllowNccOnlyAcceptance;
             context.Options.AllowNccOnlyAcceptance = true;
-            try { return _inner.Align(context); }
+            try
+            {
+                var result = _inner.Align(context);
+                if (result != null)
+                {
+                    result.Method = SampleAlignmentMethod.HalconNcc;
+                    if (result.Success)
+                    {
+                        result.PipelineStage = "NCC_HalconMatcher";
+                        result.EccCorrelation = double.NaN;
+                        result.EccFailureReason = null;
+                        result.Warning = null;
+                    }
+                }
+                return result;
+            }
             finally { context.Options.AllowNccOnlyAcceptance = original; }
         }
 

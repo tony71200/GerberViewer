@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using GerberViewer.Stitching.Transforms;
+using OpenCvSharp;
 
 namespace GerberViewer.Stitching.Matching
 {
@@ -23,6 +24,7 @@ namespace GerberViewer.Stitching.Matching
     {
         public bool Success { get; set; }
         public Transform2D MovingToReferenceTransform { get; set; }
+        public Mat AlignedMovingImage { get; set; }
         public double TranslationX { get; set; }
         public double TranslationY { get; set; }
         public double RotationDeg { get; set; }

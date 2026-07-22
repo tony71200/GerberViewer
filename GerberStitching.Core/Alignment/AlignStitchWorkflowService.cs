@@ -28,7 +28,7 @@ namespace GerberViewer.Stitching.Alignment
 
         public AlignStitchWorkflowService(Func<ISampleAligner> alignerFactory, IManualAlignmentProvider manualProvider = null, IMatcherFactory matcherFactory = null)
         {
-            _alignerFactory = alignerFactory ?? (() => new NccThenPyramidEccSampleAligner());
+            _alignerFactory = alignerFactory ?? (() => new HalconNccSampleAligner());
             _manualProvider = manualProvider;
             _matcherFactory = matcherFactory ?? new MatcherFactory();
         }
@@ -42,7 +42,7 @@ namespace GerberViewer.Stitching.Alignment
         {
             ValidateInputs(manifest, captured);
             var report = ProcessingReport.Create(config, manifest);
-            report.Messages.Add("Transform contract: CapturedToSampleTransform maps CapturedImageLocalPixels to SampleTileLocalPixels; GlobalPose maps CapturedImageLocalPixels to ProcessedSampleGlobalPixels; neighbor TargetToAnchorTransform maps target captured pixels to anchor captured pixels.");
+            report.Messages.Add("Transform contract: NCC_HalconMatcher returns MovingImage-to-ReferenceImage transforms. Direct alignment warps each captured MovingImage into its reference tile coordinate system, then composes the tile ExpectedX/ExpectedY offset for global stitching.");
             var solved = new Dictionary<int, TileWorkflowState>();
             var tileByOrder = manifest.Tiles.ToDictionary(t => t.OrderIndex);
             var capturedByOrder = captured.ToDictionary(c => c.OrderIndex);
@@ -194,7 +194,7 @@ namespace GerberViewer.Stitching.Alignment
                 AddRecoveryEdge(report, candidate.Anchor.OrderIndex, target.OrderIndex, direction, matcherName, acceptance.Reason, targetToAnchor.ToArray(), phase, ecc, overlap);
                 if (!acceptance.IsMatch) return null;
                 var global = new Transform2D(candidate.Anchor.GlobalPose).Multiply(targetToAnchor).ToArray();
-                var alignment = new SampleAlignmentResult { Success = true, Method = SampleAlignmentMethod.NccThenPyramidEcc, CapturedToSampleTransform = targetToAnchor.ToArray(), NccScore = phase.RawScore, EccCorrelation = ecc == null ? double.NaN : ecc.RawScore, PipelineStage = matcherName, PreprocessingVariant = "neighbor-overlap-" + direction, TranslationX = targetToAnchor[0, 2], TranslationY = targetToAnchor[1, 2], RotationDeg = Math.Atan2(targetToAnchor[1, 0], targetToAnchor[0, 0]) * 180 / Math.PI, Scale = 1, OverlapRatio = overlap };
+                var alignment = new SampleAlignmentResult { Success = true, Method = SampleAlignmentMethod.HalconNcc, CapturedToSampleTransform = targetToAnchor.ToArray(), NccScore = phase.RawScore, EccCorrelation = ecc == null ? double.NaN : ecc.RawScore, PipelineStage = matcherName, PreprocessingVariant = "neighbor-overlap-" + direction, TranslationX = targetToAnchor[0, 2], TranslationY = targetToAnchor[1, 2], RotationDeg = Math.Atan2(targetToAnchor[1, 0], targetToAnchor[0, 0]) * 180 / Math.PI, Scale = 1, OverlapRatio = overlap };
                 AddReport(report, target, alignment, "Recovered from anchor OrderIndex " + candidate.Anchor.OrderIndex + " via " + direction);
                 return TileWorkflowState.From(target, global, PoseSource.NeighborAlignment, alignment, acceptance.Reason);
             }
