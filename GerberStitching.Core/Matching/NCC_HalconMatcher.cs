@@ -32,13 +32,17 @@ namespace GerberViewer.Stitching.Matching
 
         public MatchResult Match(MatchRequest request, CancellationToken cancellationToken)
         {
+#if DEBUG
+            var gerberIng = request.ReferenceImage;
+            var testImg = request.MovingImage;
+#endif
             var sw = Stopwatch.StartNew();
             if (cancellationToken.IsCancellationRequested)
                 return WithTime(MatchResult.Failed(MatcherName, MatchFailureReason.Cancelled, "HALCON NCC was cancelled before start."), sw);
             var invalid = _validator.ValidateRequest(request, MatcherName);
             if (invalid != null) return WithTime(invalid, sw);
-            var options = request.Options ?? new MatcherOptions();
-
+            //var options = request.Options ?? new MatcherOptions();
+            var options = new MatcherOptions();
             HTuple row = null;
             HTuple column = null;
             HTuple angle = null;
