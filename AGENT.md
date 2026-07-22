@@ -1,189 +1,142 @@
 # AGENT.md — GerberViewer Repository Rules
 
-## 1. Purpose
+## 1. Mục đích và mức độ ưu tiên
 
-This file defines mandatory rules for every Codex task performed in this repository.
+File này định nghĩa các nguyên tắc bắt buộc cho mọi tác vụ Codex trong repository:
 
-The current implementation priority is:
+```text
+tony71200/GerberViewer
+```
 
-1. Complete and stabilize **Tab 2 — Create Gerber Sample**.
-2. Preserve the existing behavior of **Tab 1 — Read Gerber**.
-3. Do not implement or refactor **Tab 3 — Align and Stitching** unless a shared model or contract must be adjusted so Tab 2 can generate valid data for future Tab 3 use.
+Nhánh triển khai hiện tại:
 
-These rules are authoritative for all later tasks unless the user explicitly replaces them.
+```text
+2026-07-21_use-agent.md-as-program-title
+```
+
+Ưu tiên hiện tại:
+
+1. Hoàn thiện **Tab 3 — Align and Stitching**.
+2. Xây dựng matcher production:
+
+   * `IMatcher`
+   * `EccMatcher`
+   * `PharseCorrMatcher`
+   * `NCC_HalconMatcher`
+3. Hoàn thiện `resultTabControl/tabComparison` trong `AlignStitchingControl`.
+4. Giữ nguyên contract dữ liệu giữa Tab 2 và Tab 3.
+5. Không làm hỏng Tab 1 và Tab 2.
+6. Không báo hoàn thành nếu chỉ kiểm tra source tĩnh mà chưa build hoặc chạy test cần thiết.
+
+Các quy tắc trong file này có hiệu lực cao hơn các tài liệu cũ có nội dung cho rằng Tab 3 nằm ngoài phạm vi.
 
 ---
 
-## 2. Repository scope
+# 2. Công nghệ và giới hạn môi trường
 
-The solution contains these major projects:
+Solution sử dụng:
 
-- `GerberViewer`
-- `GerberEngine`
-- `GerberStitching.Core`
-- `EWindowControl`
+```text
+C# 7.3
+.NET Framework 4.8
+WinForms
+HALCON 25.05
+OpenCvSharp4
+System.Drawing
+EWindowControl
+ELog_1_0
+GerberStitching.Core
+```
 
-Tab 2 code should remain separated into:
+Quy tắc bắt buộc:
 
-- WinForms UI and derived controls in `GerberViewer`
-- Image, geometry, manifest, preprocessing, traversal, crop, and output services in `GerberStitching.Core`
-
-Do not move processing logic into `.Designer.cs`.
+* Không dùng cú pháp mới hơn C# 7.3.
+* Không chuyển project sang .NET Core, .NET 5+ hoặc SDK-style project.
+* Không đổi target framework.
+* Không thay HALCON 25.05 bằng thư viện khác.
+* Không thay OpenCvSharp bằng OpenCV wrapper khác.
+* Không tạo `.ps1` trừ khi người dùng yêu cầu rõ ràng.
+* Không thêm dependency mới khi chưa chứng minh dependency hiện có không đáp ứng được.
+* Các project có HALCON phải ưu tiên build `x64`.
+* Không tuyên bố `AnyCPU` hoạt động nếu chưa kiểm thử với HALCON runtime thực tế.
 
 ---
 
-## 3. Mandatory rule: do not modify `EWindowControl`
+# 3. Phạm vi project
 
-### 3.1 Base project is read-only
-
-The project below is treated as external/shared source:
+Các project chính:
 
 ```text
-EWindowControl/
+GerberViewer
+GerberEngine
+GerberStitching.Core
+EWindowControl
+EasyFile
+Elog_1_0
 ```
 
-Codex must not directly edit, delete, rename, reformat, or regenerate files in this project.
+Phân chia trách nhiệm:
 
-This includes, but is not limited to:
+## 3.1 `GerberViewer`
 
-- `EWindowControl.cs`
-- `PrviateFunc.cs`
-- `ERoiList.cs`
-- `PubliceStructure.cs`
-- `EWindowControl.Designer.cs`
-- project files, resources, and embedded images
+Chỉ chứa:
 
-### 3.2 Required extension method
+* WinForms UI.
+* UserControl.
+* Dialog.
+* View model dành cho UI.
+* UI event wiring.
+* Chuyển dữ liệu từ domain sang preview.
+* Hiển thị progress, diagnostics và logs.
+* UI-thread dispatch.
 
-When Tab 2 needs behavior not exposed by the base control, create or update a derived control inside `GerberViewer`, for example:
+Không đặt thuật toán alignment, HALCON matching, OpenCV matching hoặc stitching production trực tiếp trong event handler.
 
-```csharp
-public sealed class GerberSampleWindow : EWindowControl.EWindowControl
-{
-}
-```
+## 3.2 `GerberStitching.Core`
 
-Allowed approaches:
+Chứa:
 
-- inheritance
-- composition
-- adapter classes
-- extension services outside the `EWindowControl` project
-- event subscription through existing public APIs
-- wrapper methods in `GerberSampleWindow`
+* Matcher contract.
+* HALCON NCC matcher.
+* OpenCV phase-correlation matcher.
+* OpenCV ECC matcher.
+* Preprocessing.
+* Transform conversion.
+* Alignment pipeline.
+* Recovery pipeline.
+* Stitching.
+* Comparison generation.
+* Manifest model và validator.
+* Processing report.
+* Image interoperability.
+* Resource ownership.
 
-Forbidden approaches:
+## 3.3 `EWindowControl`
 
-- changing private fields in `EWindowControl`
-- patching the base project to expose one-off Tab 2 APIs
-- copying the whole base class into another file
-- reflection into private members unless the user explicitly approves it
-- changing the base control merely to make one Tab 2 test pass
+Được xem là shared/external source và mặc định chỉ đọc.
 
-### 3.3 Preserve inherited interaction behavior
+Không trực tiếp:
 
-`GerberSampleWindow` must preserve or restore:
+* sửa file,
+* đổi tên,
+* format lại,
+* regenerate Designer,
+* expose private field chỉ để phục vụ Tab 3,
+* copy toàn bộ class sang project khác.
 
-- mouse-wheel zoom
-- drag/pan
-- fit-to-view
-- double-click fit when enabled
-- image-coordinate mouse tracking
-- overlay alignment during zoom and pan
+Khi cần mở rộng, dùng:
 
-Do not replace these behaviors with a separate PictureBox-only viewer.
+* inheritance,
+* composition,
+* adapter,
+* wrapper control,
+* public event hoặc public API hiện có.
 
 ---
 
-## 4. Mandatory rule: preserve the Tab 2 ↔ Tab 3 bridge
+# 4. Source được bảo vệ
 
-Tab 3 implementation is currently out of scope, but Tab 2 output must remain consumable by the future Tab 3 pipeline.
-
-### 4.1 Single canonical manifest contract
-
-There must be exactly one canonical typed contract for:
-
-```text
-sample_manifest.json
-```
-
-The contract must live in a shared non-UI location, preferably:
-
-```text
-GerberStitching.Core/Configuration
-```
-
-or:
-
-```text
-GerberStitching.Core/Models
-```
-
-Do not define separate manifest DTOs in Tab 2 and Tab 3.
-
-### 4.2 Required tile identity
-
-Every tile must retain these stable identifiers:
-
-```text
-OrderIndex
-Row
-Column
-ExpectedPath
-ExpectedX
-ExpectedY
-Width
-Height
-```
-
-Mapping policy:
-
-```text
-Captured image OrderIndex K ↔ Sample tile OrderIndex K
-```
-
-`OrderIndex` must be unique, deterministic, zero-based unless the canonical contract explicitly states otherwise, and independent from file enumeration order.
-
-### 4.3 Contract compatibility rule
-
-When changing the manifest:
-
-- add a `ManifestVersion`
-- keep field names stable
-- document coordinate space and transform direction
-- store crop positions in processed-source pixel coordinates
-- use a deterministic path policy
-- validate the manifest by deserializing it before publication
-- reject incomplete manifests
-- never publish a manifest on cancel or partial failure
-- update all shared readers/writers/tests in the same task
-
-Do not silently introduce a second JSON shape.
-
-### 4.4 Tab 3 scope boundary
-
-Allowed during Tab 2 work:
-
-- adding or correcting shared manifest models
-- adding validation used by both tabs
-- updating shared documentation
-- preserving future `OrderIndex K ↔ K` behavior
-
-Not allowed unless separately requested:
-
-- implementing Tab 3 UI
-- implementing alignment
-- implementing neighbor recovery
-- implementing stitching
-- changing Tab 3 workflow behavior beyond the minimum needed to compile against the shared contract
-
----
-
-## 5. Mandatory rule: do not delete external or reference source
-
-Codex must not delete, overwrite, rename, or move code that originated outside the current implementation.
-
-Protected examples include:
+Không xóa, đổi tên, di chuyển hoặc ghi đè các source sau:
 
 ```text
 reference/
@@ -191,398 +144,1205 @@ Sources/
 third_party/
 vendor/
 external/
-legacy reference projects
+legacy/
 ZIP archives
+sample images
 sample Gerber files
-sample TIFF/PNG/BMP files
-test datasets
 HALCON reference code
 OpenCV reference code
 ```
 
-Also do not delete files merely because they appear unused.
+`reference/` là read-only.
 
-Before removing any source file from the active solution:
+Được phép:
 
-1. Prove it is owned by this repository.
-2. Search all project references and runtime loading paths.
-3. Record the reason in the changed-files report.
-4. Obtain explicit user approval when the file is external, migrated, legacy, or reference material.
+* đọc,
+* phân tích,
+* port có chọn lọc,
+* chuyển namespace,
+* chuyển model,
+* viết lại theo contract production,
+* tạo file production mới dựa trên ý tưởng từ reference.
 
-Preferred handling for unused code:
+Không được phép:
 
-- leave it unchanged
-- exclude it from build only when justified
-- move repository-owned obsolete code to an explicitly approved archive
-- document it in `unusedLog.html` or a Markdown report
+* copy nguyên project reference vào solution production,
+* giữ namespace reference trong production,
+* kéo theo các class không liên quan,
+* sửa trực tiếp file dưới `reference/`,
+* thêm reference project vào production chỉ để dùng tạm.
 
-Never delete a ZIP or reference implementation as cleanup.
+Nếu một file có vẻ không sử dụng:
+
+* không tự xóa,
+* ghi nhận trong báo cáo,
+* chỉ loại khỏi build khi có bằng chứng và không làm hỏng runtime,
+* cần phê duyệt người dùng trước khi xóa source ngoài phạm vi hiện tại.
 
 ---
 
-## 6. Canonical image policy for Tab 2
+# 5. Quy tắc bảo vệ Tab 1 và Tab 2
 
-### 6.1 Canonical in-memory image
+Tab 3 được phép đọc output từ Tab 2 nhưng không được phá vỡ workflow hiện tại.
 
-Tab 2 must use HALCON `HObject` as the canonical image representation for:
-
-- opened sample image
-- preprocessed sample image
-- crop source
-- preview source
-- tile generation source
-
-Do not use `Bitmap` as the master source for large TIFF or BigTIFF input.
-
-### 6.2 No repeated decoding
-
-A sample image must be decoded once per selected source/run unless an explicit cache invalidation requires a reload.
-
-Forbidden flow:
+Contract bắt buộc:
 
 ```text
-Open with HALCON for preview
-→ reopen with Bitmap for preprocessing
-→ reopen again for tile generation
+Captured image OrderIndex K
+↔
+Sample tile OrderIndex K
 ```
 
-Required flow:
+Không remap bằng:
+
+* thứ tự JSON hiện tại,
+* row/column gần nhất,
+* robot coordinate,
+* filename tùy ý,
+* content similarity,
+* selection index của ListBox.
+
+Phải:
+
+1. Validate manifest.
+2. Natural sort captured images.
+3. Gán hoặc xác nhận `OrderIndex`.
+4. Map bằng dictionary theo `OrderIndex`.
+5. Block execution nếu thiếu, trùng hoặc sai count.
+
+Không tạo DTO manifest thứ hai dành riêng cho Tab 3.
+
+---
+
+# 6. Canonical coordinate spaces
+
+Mọi code mới phải dùng tên coordinate space rõ ràng.
+
+Các coordinate space chính:
 
 ```text
-Read once
-→ create owned canonical HObject
-→ preprocess once
-→ retain owned processed HObject
-→ calculate layout from processed dimensions
-→ preview and generator consume the same processed image and layout
+SampleTileLocalPixels
+ProcessedSampleGlobalPixels
+CapturedImageLocalPixels
+StitchedCanvasPixels
+OriginalSamplePixels
+PreviewPixels
 ```
 
-### 6.3 Explicit interop layer
-
-All conversion among these libraries must go through a named, tested interop service:
+Ý nghĩa:
 
 ```text
-HALCON HObject
-System.Drawing.Bitmap
-OpenCvSharp.Mat
+SampleTileInfo.ExpectedX / ExpectedY
+=
+tọa độ góc tile trong ProcessedSampleGlobalPixels
 ```
 
-Recommended location:
+Không gọi các giá trị này là:
 
 ```text
-GerberStitching.Core/Imaging/ImageInterop
+RobotX
+RobotY
+MachineX
+MachineY
 ```
 
-Recommended API shape:
+trừ khi dữ liệu thực sự đã được chuyển sang robot hoặc machine coordinate.
+
+---
+
+# 7. Canonical transform direction
+
+Đây là quy tắc quan trọng nhất của Tab 3.
+
+## 7.1 Matcher contract
+
+Mọi matcher nhận:
+
+```text
+Reference image
+Moving image
+```
+
+và trả về:
+
+```text
+MovingToReferenceTransform
+```
+
+Không dùng tên mơ hồ như:
+
+```text
+src
+dst
+image1
+image2
+```
+
+trong public contract nếu không có giải thích rõ vai trò.
+
+## 7.2 Camera-to-sample
+
+```text
+Reference = Sample tile
+Moving    = Captured camera image
+
+Output:
+CapturedToSampleTransform
+```
+
+Direction:
+
+```text
+CapturedImageLocalPixels
+→
+SampleTileLocalPixels
+```
+
+## 7.3 Neighbor recovery
+
+```text
+Reference = Anchor captured image
+Moving    = Target captured image
+
+Output:
+TargetToAnchorTransform
+```
+
+Direction:
+
+```text
+TargetCapturedLocalPixels
+→
+AnchorCapturedLocalPixels
+```
+
+Global pose:
+
+```text
+TargetGlobalPose
+=
+AnchorGlobalPose
+×
+TargetToAnchorTransform
+```
+
+## 7.4 Global camera pose
+
+```text
+CapturedGlobalPose
+=
+Translation(tile.ExpectedX, tile.ExpectedY)
+×
+CapturedToSampleTransform
+```
+
+Direction:
+
+```text
+CapturedImageLocalPixels
+→
+ProcessedSampleGlobalPixels
+```
+
+## 7.5 Adapter boundary
+
+HALCON và OpenCV có thể có convention khác nhau.
+
+Tại adapter boundary phải:
+
+1. Ghi rõ library trả về transform nào.
+2. Convert hoặc invert đúng một lần.
+3. Chuyển sang canonical direction.
+4. Không invert lại trong workflow.
+5. Có synthetic test chứng minh direction.
+
+Không chỉ dựa vào comment.
+
+---
+
+# 8. Canonical matrix representation
+
+Domain layer sử dụng một representation duy nhất:
 
 ```csharp
-public interface IImageInteropService
+double[,]
+```
+
+với kích thước:
+
+```text
+3 × 3
+```
+
+hoặc một wrapper immutable như:
+
+```csharp
+Transform2D
+```
+
+nếu wrapper được triển khai đầy đủ.
+
+Adapter được phép dùng:
+
+```text
+OpenCV: Mat CV_64F
+HALCON: HTuple HomMat2D
+```
+
+Conversion phải tập trung trong một service hoặc utility có test.
+
+Không truyền `Mat` hoặc `HTuple` xuyên suốt toàn bộ domain nếu không có ownership contract.
+
+---
+
+# 9. Kiến trúc Matcher bắt buộc
+
+Các file production matcher phải nằm trong:
+
+```text
+GerberStitching.Core/Matching/
+```
+
+Tối thiểu gồm:
+
+```text
+IMatcher.cs
+MatchRequest.cs
+MatchResult.cs
+MatcherOptions.cs
+MatcherFactory.cs
+MatcherGeometryValidator.cs
+EccMatcher.cs
+PharseCorrMatcher.cs
+NCC_HalconMatcher.cs
+```
+
+Có thể thêm:
+
+```text
+MatcherBase.cs
+PreparedMatchImage.cs
+MatcherPipeline.cs
+MatcherTransformConverter.cs
+MatcherDiagnostics.cs
+```
+
+nếu cần.
+
+## 9.1 `IMatcher`
+
+`IMatcher` là public contract chung.
+
+Tối thiểu:
+
+```csharp
+public interface IMatcher : IDisposable
 {
-    Bitmap ToBitmapCopy(HObject source);
-    HObject ToHObjectCopy(Bitmap source);
-    Mat ToMatCopy(HObject source);
-    HObject ToHObjectCopy(Mat source);
-    Mat ToMatCopy(Bitmap source);
-    Bitmap ToBitmapCopy(Mat source);
+    string MatcherName { get; }
+
+    MatchResult Match(
+        MatchRequest request,
+        CancellationToken cancellationToken);
 }
 ```
 
-Rules:
-
-- every conversion result must have explicit ownership
-- method names must state whether they return a copy
-- never return a `Bitmap` backed by a temporary HALCON pointer
-- never return a `Mat` backed by disposed managed memory
-- preserve channel order and bit depth
-- document RGB/BGR conversion
-- support grayscale and color paths
-- reject unsupported pixel types with contextual errors
-- dispose all temporary objects deterministically
-
-Direct ad hoc conversion code in UI event handlers is forbidden.
-
----
-
-## 7. Single source of truth for preprocessing, grid, and order
-
-Tab 2 must have one prepared run model, for example:
+Không tiếp tục dùng contract:
 
 ```csharp
-public sealed class PreparedSampleRun : IDisposable
-{
-    public HObject ProcessedImage { get; }
-    public int ProcessedWidth { get; }
-    public int ProcessedHeight { get; }
-    public SampleGridLayout Layout { get; }
-    public IReadOnlyList<SampleTileLayout> TilesByOrder { get; }
-    public GerberSampleConfig ConfigSnapshot { get; }
-}
+Run(Bitmap src, Rectangle srcRoi, Bitmap dst, Rectangle dstRoi)
 ```
 
-Both preview and generator must consume the same:
+nếu vai trò reference/moving không rõ ràng.
 
-- processed image
-- processed dimensions
-- overlap calculation
-- physical rectangles
-- traversal result
-- `OrderIndex`
-- row and column mapping
+## 9.2 `MatchRequest`
 
-Do not maintain independent ordering implementations for preview and generation.
-
-Required architecture:
+Phải chứa rõ:
 
 ```text
-Config snapshot
-+ canonical source HObject
-→ preprocess service
-→ processed HObject
-→ one geometry/traversal service
-→ PreparedSampleRun
-   ├─ preview overlay
-   └─ tile generator
+Reference image
+Moving image
+Reference ROI hoặc mask
+Moving ROI hoặc mask
+Initial MovingToReference transform
+Matcher options
+Purpose
+OrderIndex hoặc pair context
 ```
 
-`SampleGeometryCalculator` and `RobotArrange/TraversalGraph` must not independently assign conflicting `OrderIndex` values. Consolidate ordering behind one service or make one delegate to the other.
+Ownership của image phải được ghi rõ.
+
+## 9.3 `MatchResult`
+
+Phải tách:
+
+```text
+Success
+MovingToReferenceTransform
+TranslationX
+TranslationY
+RotationDeg
+Scale
+RawScore
+NormalizedConfidence
+OverlapRatio
+MatcherName
+FailureReason
+ProcessingTime
+Diagnostics
+```
+
+Không ghi NCC score vào `EccCorrelation`.
+
+Không ghi phase response vào NCC score.
+
+Không so sánh trực tiếp score giữa các thuật toán nếu chưa normalize bằng policy rõ ràng.
 
 ---
 
-## 8. Threading and UI responsiveness
+# 10. Quy tắc `NCC_HalconMatcher`
 
-All expensive image work must execute outside the UI thread:
+`NCC_HalconMatcher` phải dùng HALCON NCC thật.
 
-- image decode
-- image validation
-- preprocessing
-- format conversion
-- grid/traversal calculation for large layouts
-- tile crop
-- tile encode/write
-- output verification
-- manifest serialization and validation
-- overlay preparation when computationally expensive
-
-Required mechanisms:
+Lifecycle bắt buộc:
 
 ```text
-Task.Run
+create_ncc_model
+find_ncc_model
+clear_ncc_model
+```
+
+hoặc API HALCON 25.05 tương đương chính xác.
+
+Không dùng:
+
+```csharp
+new object()
+```
+
+hoặc class chỉ lưu Width/Height làm model giả.
+
+Matcher phải:
+
+* tạo model theo sample tile,
+* cache model theo stable key,
+* bao gồm preprocessing variant trong key,
+* hỗ trợ angle range cấu hình,
+* trả về HALCON score thật,
+* convert Row/Column/Angle thành canonical transform,
+* dispose từng model đúng một lần,
+* không gọi `clear_all_ncc_models`,
+* block success nếu score dưới threshold,
+* hỗ trợ cancellation giữa các tile,
+* ghi context khi lỗi.
+
+Cache key nên bao gồm:
+
+```text
+SampleTileId
+PreprocessingVariant
+AngleStart
+AngleExtent
+AngleStep
+Metric-related options
+```
+
+Nếu matcher được chia sẻ giữa worker threads, cache phải thread-safe hoặc matcher phải dùng theo run-scope riêng.
+
+---
+
+# 11. Quy tắc `EccMatcher`
+
+`EccMatcher` phải gọi:
+
+```csharp
+Cv2.FindTransformECC(...)
+```
+
+Không dùng NCC proxy.
+
+Phải hỗ trợ pyramid coarse-to-fine.
+
+Tại mỗi level:
+
+1. Resize hoặc lấy pyramid image.
+2. Scale initial transform đúng level.
+3. Chạy `FindTransformECC`.
+4. Kiểm tra matrix finite.
+5. Propagate transform lên level tiếp theo.
+6. Lưu correlation thật.
+7. Dispose temporary `Mat`.
+
+Motion model được phép:
+
+```text
+Translation
+Euclidean
+Affine
+```
+
+Default nên là:
+
+```text
+Euclidean
+```
+
+Không bật Homography nếu chưa có test đầy đủ.
+
+Phải dùng config:
+
+```text
+PyramidLevels
+EccIterations
+EccEpsilon
+EccMinCorrelation
+```
+
+Nếu ECC không hội tụ:
+
+* không throw ra ngoài mà không có context,
+* trả `Success = false`,
+* ghi failure reason,
+* không thay bằng score giả.
+
+---
+
+# 12. Quy tắc `PharseCorrMatcher`
+
+Tên `PharseCorrMatcher` được giữ theo yêu cầu hiện tại dù spelling không chuẩn.
+
+Implementation phải dùng:
+
+```csharp
+Cv2.PhaseCorrelate(...)
+```
+
+Không được dùng brute-force `double[,]` rồi gọi là phase correlation.
+
+Phải:
+
+* dùng grayscale single-channel,
+* convert sang `CV_32F`,
+* bảo đảm hai Mat cùng kích thước,
+* dùng Hanning window thật,
+* trả response thật,
+* chỉ claim translation,
+* không claim rotation hoặc scale,
+* dispose window và temporary Mat,
+* hỗ trợ cancellation,
+* validate ROI và overlap.
+
+Vai trò ưu tiên:
+
+```text
+captured-to-captured neighbor matching
+```
+
+Không mặc định dùng phase correlation làm camera-to-Gerber matcher chính nếu modality khác nhau đáng kể.
+
+---
+
+# 13. Matcher pipeline
+
+Không chạy tất cả matcher rồi chọn score lớn nhất.
+
+## 13.1 Direct camera-to-sample
+
+Default:
+
+```text
+Preprocess candidates
+→ HALCON NCC coarse
+→ geometry validation
+→ OpenCV Pyramid ECC refinement
+→ final geometry validation
+→ accept hoặc reject
+```
+
+Policy:
+
+```text
+NCC pass + ECC pass
+    dùng ECC result
+
+NCC pass + ECC fail
+    chỉ dùng NCC nếu AllowNccOnlyAcceptance = true
+    và NCC geometry vẫn hợp lệ
+
+NCC fail
+    có thể chạy ECC từ expected transform
+    nếu AllowEccFromExpectedWhenNccFails = true
+
+Tất cả fail
+    chuyển recovery
+```
+
+## 13.2 Neighbor recovery
+
+Default:
+
+```text
+Select solved anchor
+→ select overlap ROI
+→ PharseCorrMatcher coarse
+→ optional EccMatcher refinement
+→ pair geometry validation
+→ compose target global pose
+```
+
+Acceptance phải dựa trên:
+
+```text
+score
+overlap
+finite matrix
+direction consistency
+translation deviation
+rotation deviation
+expected neighbor geometry
+```
+
+Không hard-code:
+
+```csharp
+IsMatch = true;
+Score = 1;
+```
+
+---
+
+# 14. Preprocessing
+
+Không sử dụng production path dựa trên:
+
+```text
+Bitmap.GetPixel
+Bitmap.SetPixel
+double[,]
+float[,]
+```
+
+cho ảnh lớn hoặc matcher chính.
+
+Canonical policy:
+
+```text
+Decode và sample lifecycle: HALCON HObject
+OpenCV alignment/warping: OpenCvSharp Mat
+WinForms bounded preview: Bitmap
+```
+
+Preprocessing có thể gồm:
+
+```text
+grayscale
+contrast normalization
+illumination normalization
+polarity inversion
+fixed threshold
+Otsu threshold
+adaptive threshold
+Sobel
+Canny
+content mask
+valid image mask
+working-scale resize
+```
+
+Nếu enum hoặc PropertyGrid expose một mode:
+
+* phải implement thật,
+* hoặc disable/remove mode,
+* không map tất cả mode về cùng một implementation.
+
+`PolarityMode.Auto` phải thử candidate thật và ghi candidate được chọn.
+
+---
+
+# 15. Image interoperability và ownership
+
+Nên có service:
+
+```text
+GerberStitching.Core/Imaging/ImageInterop/
+```
+
+Tối thiểu:
+
+```csharp
+HObject ToHObjectCopy(Mat source);
+Mat ToMatCopy(HObject source);
+Bitmap ToBitmapCopy(Mat source);
+Mat ToMatCopy(Bitmap source);
+```
+
+Quy tắc:
+
+* Method name phải nói rõ copy hoặc ownership.
+* Không trả buffer dựa trên memory đã dispose.
+* Không giữ pointer tạm của HALCON trong Bitmap.
+* Ghi rõ RGB/BGR.
+* Hỗ trợ Mono8, Mono16 và 3-channel color.
+* Không convert full-size stitched image sang Bitmap chỉ để preview.
+* Mọi `Mat`, `Bitmap`, `HObject`, `HTuple`, model ID phải có owner rõ ràng.
+
+Class giữ resource vượt khỏi method scope phải implement `IDisposable`.
+
+---
+
+# 16. WinForms và Designer
+
+Mọi UserControl production có layout phải có:
+
+```text
+Control.cs
+Control.Designer.cs
+Control.resx
+```
+
+Nếu reference control có `.Designer.cs`, khi port phải sử dụng cấu trúc Designer tương ứng.
+
+`.Designer.cs` chỉ được chứa:
+
+* declarations,
+* property assignments,
+* layout,
+* `SuspendLayout`/`ResumeLayout`,
+* event wiring,
+* standard `Dispose(bool)`.
+
+Không đặt trong `.Designer.cs`:
+
+* HALCON operators,
+* OpenCV processing,
+* matching,
+* image loading,
+* JSON logic,
+* async workflow,
+* stitching,
+* comparison generation,
+* report writing.
+
+Giữ formatting tương thích Visual Studio Designer.
+
+Cập nhật `.csproj` đúng:
+
+```xml
+<SubType>UserControl</SubType>
+<DependentUpon>...</DependentUpon>
+<EmbeddedResource ...>
+```
+
+Không tạo toàn bộ UI bằng code trong constructor nếu control cần chỉnh bằng Visual Studio Designer.
+
+---
+
+# 17. `AlignStitchingControl`
+
+`AlignStitchingControl` chịu trách nhiệm:
+
+* chọn manifest,
+* chọn captured folder,
+* chọn output folder,
+* bind config,
+* start/cancel workflow,
+* nhận progress,
+* update UI snapshot,
+* hiển thị result,
+* hiển thị comparison,
+* hiển thị log.
+
+Không chứa matcher algorithm.
+
+Phải sửa đúng lifecycle của `WorkflowContext`:
+
+```text
+unsubscribe old context
+assign new context
+subscribe new context
+refresh UI
+```
+
+Lần gán đầu tiên khi field đang `null` vẫn phải hoạt động.
+
+Không giữ hai `AlignStitchConfig` khác nhau trong Core và UI.
+
+---
+
+# 18. `resultTabControl/tabComparison`
+
+`tabComparison` không được chỉ giữ một `PictureBox`.
+
+Phải tạo production control:
+
+```text
+GerberViewer/Views/SampleComparisonControl.cs
+GerberViewer/Views/SampleComparisonControl.Designer.cs
+GerberViewer/Views/SampleComparisonControl.resx
+```
+
+Có thể tạo thêm:
+
+```text
+GerberViewer/Views/ComparisonImageView.cs
+```
+
+Layout phải tham khảo có chọn lọc từ:
+
+```text
+reference/StitchingImage/StitchingImage/
+Stitch_Tools/DesignControls/OffsetPreviewControl.cs
+
+reference/StitchingImage/StitchingImage/
+Stitch_Tools/DesignControls/OffsetPreviewControl.Designer.cs
+```
+
+Không copy nguyên các dependency về:
+
+```text
+Robot distance
+Robot delta
+TraversalBatchResult
+EdgeInfo
+PairMatching
+Horizontal/vertical robot offsets
+```
+
+nếu không phù hợp với sample comparison.
+
+Layout mục tiêu:
+
+```text
+35% bên trái:
+    comparison mode
+    alpha
+    blink interval
+    metrics
+    coordinate status
+    save/open actions
+    status
+
+65% bên phải:
+    Reference preview
+    Comparison/output preview
+```
+
+Hai preview có thể đặt trong `SplitContainer` theo chiều ngang như reference.
+
+Mode tối thiểu:
+
+```text
+Sample only
+Stitched only
+Alpha overlay
+Absolute difference
+Edge overlay
+Blink comparison
+```
+
+Control phải:
+
+* zoom,
+* pan,
+* fit,
+* dispose ảnh cũ,
+* không sửa source image khi thay alpha,
+* không giữ full-resolution bitmap,
+* hiển thị warning nếu coordinate space không authoritative.
+
+Trong `AlignStitchingControl.Designer.cs`:
+
+* loại `picComparison`,
+* thêm `SampleComparisonControl`,
+* `Dock = Fill`.
+
+---
+
+# 19. Comparison coordinate rules
+
+Authoritative comparison phải dùng cùng coordinate space:
+
+```text
+ProcessedSampleGlobalPixels
+```
+
+Nguồn sample ưu tiên:
+
+```text
+ProcessedSamplePath
+```
+
+Manifest cần hỗ trợ metadata:
+
+```text
+ProcessedSamplePath
+SourceToProcessedTransform
+PreprocessMode
+```
+
+Nếu manifest cũ không có:
+
+* chỉ dùng `SourceRasterPath` khi source và processed geometry giống nhau,
+* nếu chỉ resize và transform xác định được, reconstruct rõ ràng,
+* với FitPad/CenterCrop phải có transform đầy đủ,
+* nếu không xác định được mapping, block authoritative overlay,
+* không resize tùy ý rồi báo comparison chính xác.
+
+Comparison output tối thiểu:
+
+```text
+sample_reference_preview.png
+stitched_preview.png
+overlay_comparison.png
+difference_comparison.png
+edge_comparison.png
+comparison_metadata.json
+```
+
+Metrics không được chỉ có một “accuracy percentage”.
+
+Nên báo:
+
+```text
+valid overlap ratio
+edge overlap
+binary mask IoU
+normalized cross-correlation
+distance-transform error
+```
+
+---
+
+# 20. Stitching
+
+Chỉ stitch state có:
+
+```text
+IsStitchable == true
+```
+
+Không suy luận alignment success và stitchability từ một enum duy nhất.
+
+State nên có:
+
+```text
+AlignmentSucceeded
+IsFallbackPose
+IsStitchable
+PoseSource
+```
+
+Stitcher phải:
+
+* map image bằng `OrderIndex`,
+* transform đủ bốn góc để tính bounds,
+* warp image,
+* warp valid mask,
+* hỗ trợ rotation/scale thật,
+* blend overlap,
+* bỏ black-border contamination,
+* tạo bounded preview,
+* giữ full-resolution output độc lập với preview scale,
+* hỗ trợ cancellation.
+
+Không dùng:
+
+```text
+Row + ":" + Column
+```
+
+làm identity chính khi `OrderIndex` đã tồn tại.
+
+Không tạo full-size `Bitmap` nếu output có thể vượt giới hạn memory.
+
+---
+
+# 21. Threading và cancellation
+
+Các tác vụ sau phải chạy ngoài UI thread:
+
+```text
+manifest validation lớn
+captured image validation
+decode
+preprocessing
+HALCON NCC
+OpenCV phase correlation
+OpenCV ECC
+neighbor recovery
+stitching
+TIFF/BigTIFF writing
+comparison generation
+report serialization
+```
+
+Dùng:
+
+```text
+async/await
+CancellationTokenSource
 CancellationToken
 IProgress<T>
-immutable/config snapshots
-UI update through captured SynchronizationContext or Progress<T>
+immutable UI snapshots
 ```
 
-Forbidden mechanisms:
+Không dùng:
 
-- `Application.DoEvents()`
-- `Thread.Sleep()` to hide race conditions
-- accessing WinForms controls from worker threads
-- reading `PropertyGrid` or ComboBox values inside a worker
-- calling `sampleWindow` from a worker thread
-- blocking `.Result` or `.Wait()` on the UI thread
-- starting a second run while one is active
+```text
+Application.DoEvents()
+Thread.Sleep()
+Task.Result trên UI thread
+Task.Wait() trên UI thread
+Control access từ worker
+```
 
-UI controls must be restored in `finally`.
+Phải:
+
+* disable control gây xung đột khi chạy,
+* prevent double Run,
+* restore UI trong `finally`,
+* không thay manifest/folder trong khi chạy,
+* cancel trước stage tốn thời gian tiếp theo,
+* không publish completed output sau cancellation.
+
+Manual dialog phải được marshal về UI thread.
 
 ---
 
-## 9. Safe output policy
+# 22. Logging và error handling
 
-### 9.1 Never delete the user-selected root
-
-This is forbidden:
+Không dùng:
 
 ```csharp
-Directory.Delete(userSelectedOutputDirectory, true);
+catch
+{
+}
 ```
 
-The selected output path is a root location, not an application-owned disposable directory.
+Không bỏ qua exception.
 
-### 9.2 Application-owned run directory
-
-Create a run-specific temporary directory:
+Mọi lỗi matcher phải chứa context:
 
 ```text
-<OutputRoot>/.creating_<runId>/
+OrderIndex
+Row
+Column
+Sample path
+Captured path
+Matcher name
+Stage
+Image dimensions
+Channel
+Bit depth
+Preprocessing variant
+Transform direction
 ```
 
-or:
+Phân biệt:
 
 ```text
-<OutputRoot>/GerberSample_<runId>/.creating/
+Rejected match
+Cancellation
+Runtime failure
+Invalid input
+Unsupported pixel format
 ```
 
-Only directories created by the current run may be recursively deleted automatically.
+Logging không thay thế structured report.
 
-### 9.3 User warning
-
-When an operation could overwrite, replace, clean, or remove existing files:
-
-- detect the condition before starting the worker
-- show the exact path
-- explain which files may be replaced
-- require explicit user confirmation
-- default to cancel
-- log the user decision
-
-Never hide destructive behavior behind a normal Create button.
-
-### 9.4 Transactional publication
-
-On success:
+Phải có:
 
 ```text
-validate every tile
-→ verify every saved file is readable
-→ write config snapshot
-→ write manifest
-→ deserialize and validate manifest
-→ write overlay preview if enabled
-→ atomically publish/move final run directory
-→ update WorkflowContext
+human-readable log
+processing_report.json
 ```
 
-On failure or cancellation:
-
-- do not publish a complete manifest
-- do not update `WorkflowContext.ManifestPath` as successful
-- clean only the current application-owned temporary directory
-- keep prior successful output intact
+Không xóa log hoặc output root của người dùng.
 
 ---
 
-## 10. Resource ownership
+# 23. Output safety
 
-Every class holding one of these resources must define ownership explicitly:
-
-- `HObject`
-- `HTuple`
-- `HImage`
-- `Bitmap`
-- `Graphics`
-- `Mat`
-- `Stream`
-- `CancellationTokenSource`
-
-Rules:
-
-- implement `IDisposable` where ownership spans method scope
-- do not dispose an image still displayed by a control
-- do not share one mutable/disposable image instance among unrelated owners
-- use copy/clone only through documented APIs
-- replace old source through a single method
-- dispose prior owned source exactly once
-- clear preview ownership when the control is disposed
-
-Shallow copying HALCON handles into multiple owners without a contract is forbidden.
-
----
-
-## 11. Error handling and logging
-
-Do not use:
+Không được:
 
 ```csharp
-catch { }
+Directory.Delete(userSelectedOutputRoot, true);
 ```
 
-Do not catch an exception only to ignore it.
+Tạo thư mục application-owned:
 
-Every error must include relevant context:
+```text
+<OutputRoot>/
+└─ AlignStitch_<runId>/
+   └─ .creating/
+```
 
-- source file
-- output folder
-- tile `OrderIndex`
-- row and column
-- image dimensions
-- preprocess mode
-- pixel type/channel count
-- operation name
+Success:
 
-Expected cancellation must be handled separately from failure.
+```text
+validate outputs
+→ write report
+→ write comparison metadata
+→ reopen output for verification
+→ publish final directory
+```
 
-A failed tile must remain failed and must not be shown as completed.
+Failure/cancellation:
 
----
-
-## 12. Designer and WinForms rules
-
-`.Designer.cs` may contain only:
-
-- control declarations
-- property assignments
-- layout
-- event wiring
-- standard `Dispose(bool)`
-
-It must not contain:
-
-- image loading
-- HALCON operators
-- OpenCV code
-- JSON logic
-- preprocessing
-- traversal
-- crop logic
-- async worker logic
-- manifest logic
-
-Preserve Visual Studio Designer formatting and `.resx` relationships.
+```text
+do not publish completed report
+do not update LastStitchedOutputPath
+clean only current .creating directory
+preserve previous successful output
+```
 
 ---
 
-## 13. Required workflow for every Codex task
+# 24. Build và test
 
-Before editing:
+Sau mỗi task logic:
 
-1. Read this file.
-2. Read the current task prompt.
-3. Inspect the current branch and relevant docs.
-4. State the task scope and files expected to change.
-5. Identify whether the task affects the manifest bridge.
-6. Identify all owned disposable resources.
-7. Record baseline build/test status.
+```text
+Build Debug x64
+Build Release x64
+Run relevant tests
+```
 
-During editing:
+Nếu môi trường không có:
 
-1. Keep the solution buildable after each logical task.
-2. Do not perform unrelated cleanup.
-3. Do not change public contracts without updating tests and docs.
-4. Do not change `EWindowControl`.
-5. Do not delete external/reference source.
-6. Use C# 7.3-compatible syntax.
+```text
+MSBuild
+HALCON runtime
+HALCON license
+OpenCV native runtime
+test images
+```
 
-After editing:
+phải báo chính xác:
 
-1. Build x64 Debug.
-2. Build x64 Release.
-3. Run relevant unit/integration tests.
-4. Report tests that could not run and why.
-5. List every changed file and method.
-6. Report resource ownership changes.
-7. Report manifest schema changes.
-8. Report any remaining risk.
-9. Do not mark a task complete based only on static inspection when runtime behavior is required.
+* command đã chạy,
+* lỗi nhận được,
+* phần nào chưa được xác minh,
+* không đánh dấu task complete dựa trên static inspection.
+
+Test tối thiểu:
+
+## Matcher synthetic tests
+
+```text
+translation
+rotation
+noise
+illumination gradient
+normal polarity
+inverted polarity
+partial overlap
+low texture rejection
+invalid ROI
+cancellation
+```
+
+## Mapping tests
+
+```text
+1×1
+2×2
+4×4
+8×8
+filename 1, 2, 10
+duplicate OrderIndex
+missing OrderIndex
+count mismatch
+```
+
+## Runtime smoke tests
+
+```text
+load real manifest
+load real captured folder
+run NCC
+run ECC
+run neighbor matcher
+stitch output
+open stitched TIFF
+generate comparison
+change comparison mode
+cancel running operation
+close Form safely
+```
+
+Test phải kiểm tra transform direction, không chỉ score.
 
 ---
 
-## 14. Definition of done for Tab 2 work
+# 25. Quy trình bắt buộc cho mỗi task
 
-A Tab 2 task is complete only when all applicable statements are true:
+Trước khi sửa:
 
-- `EWindowControl` was not modified.
-- Large TIFF/BigTIFF is not reopened through `Bitmap`.
-- Tab 2 uses an owned canonical `HObject`.
-- Preview and generator use the same processed image.
-- Preview and generator use the same layout and `OrderIndex`.
-- Zoom, pan, and fit still work in `GerberSampleWindow`.
-- Image processing does not block the UI thread.
-- Cancellation restores UI state.
-- No user-selected root folder is recursively deleted.
-- Destructive output behavior requires an explicit warning.
-- Manifest uses the canonical shared contract.
-- Manifest is not published after failure or cancellation.
-- Every completed tile has a readable output file.
-- All changed code is C# 7.3 / .NET Framework 4.8 compatible.
-- Build and tests are reported honestly.
+1. Đọc `AGENT.md`.
+2. Đọc `docs/Codex_Prompt_Fix_Tab3_implement_v2.md`.
+3. Đọc task hiện tại.
+4. Kiểm tra branch hiện tại.
+5. Kiểm tra working tree.
+6. Ghi baseline build/test.
+7. Liệt kê file dự kiến tạo và thay đổi.
+8. Xác định resource ownership.
+9. Xác định ảnh hưởng tới manifest và transform contract.
+
+Trong khi sửa:
+
+1. Chỉ sửa phạm vi task.
+2. Không cleanup không liên quan.
+3. Giữ solution buildable sau từng nhóm thay đổi.
+4. Không sửa `reference/`.
+5. Không sửa `EWindowControl`.
+6. Không tạo fake success.
+7. Không để placeholder được gọi từ production UI.
+8. Cập nhật `.csproj`, `.Designer.cs`, `.resx` cùng task nếu tạo control.
+9. Thêm test cùng implementation.
+10. Dispose resource rõ ràng.
+
+Sau khi sửa:
+
+1. Build Debug x64.
+2. Build Release x64.
+3. Chạy test task hiện tại.
+4. Chạy regression test liên quan.
+5. Liệt kê file thay đổi.
+6. Liệt kê class/method thay đổi.
+7. Ghi resource ownership.
+8. Ghi transform direction.
+9. Ghi phần chưa test được.
+10. Không dùng từ “complete” nếu acceptance criteria chưa đạt.
+
+---
+
+# 26. Definition of Done
+
+Tab 3 chỉ được coi là hoàn thành khi:
+
+* `WorkflowContext` hoạt động từ lần gán đầu.
+* Chỉ còn một canonical `AlignStitchConfig`.
+* `IMatcher` production được sử dụng.
+* `NCC_HalconMatcher` dùng HALCON NCC thật.
+* `EccMatcher` dùng `Cv2.FindTransformECC`.
+* `PharseCorrMatcher` dùng `Cv2.PhaseCorrelate`.
+* Không còn NCC/ECC proxy trong production.
+* Transform direction có synthetic test.
+* Direct alignment chạy theo NCC → ECC policy.
+* Neighbor recovery có image-based matching thật.
+* Global pose được compose đúng direction.
+* Stitcher dùng `OrderIndex`.
+* Bounds được tính từ transformed corners.
+* Image và valid mask được warp.
+* Comparison dùng `ProcessedSampleGlobalPixels`.
+* `SampleComparisonControl` có `.cs`, `.Designer.cs`, `.resx`.
+* `tabComparison` không còn chỉ là `PictureBox`.
+* Preview hỗ trợ zoom/pan/fit.
+* Resource được dispose rõ ràng.
+* Cancellation không publish output giả.
+* Debug x64 và Release x64 được build hoặc báo trung thực lý do không build.
+* Synthetic tests chạy.
+* Ít nhất một real-data smoke test được ghi nhận.
+* Không sửa source dưới `reference/`.
+* Không sửa `EWindowControl`.
+* Không phá Tab 1 hoặc Tab 2.

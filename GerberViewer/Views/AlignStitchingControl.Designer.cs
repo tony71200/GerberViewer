@@ -31,6 +31,7 @@ namespace GerberViewer.Views
             this.tabDiagnostics = new System.Windows.Forms.TabPage();
             this.txtDiagnostics = new System.Windows.Forms.TextBox();
             this.tabStitchedImage = new System.Windows.Forms.TabPage();
+            this.resultWindow = new GerberViewer.Views.GerberSampleWindow();
             this.picStitchedImage = new System.Windows.Forms.PictureBox();
             this.tabComparison = new System.Windows.Forms.TabPage();
             this.picComparison = new System.Windows.Forms.PictureBox();
@@ -38,14 +39,13 @@ namespace GerberViewer.Views
             this.lstTab3Log = new System.Windows.Forms.ListBox();
             this.tableLayout_AlignControl = new System.Windows.Forms.TableLayoutPanel();
             this.split_AlignContain = new System.Windows.Forms.SplitContainer();
-            this.tabPage_Params = new System.Windows.Forms.TabPage();
+            this.infotabControl = new System.Windows.Forms.TabControl();
             this.tabPage_ListMap = new System.Windows.Forms.TabPage();
             this.lstCapturedImages = new System.Windows.Forms.ListBox();
-            this.infotabControl = new System.Windows.Forms.TabControl();
-            this.txtManifestInfo = new System.Windows.Forms.TextBox();
-            this.tabPage_Log = new System.Windows.Forms.TabPage();
+            this.tabPage_Params = new System.Windows.Forms.TabPage();
             this.alignConfigGrid = new System.Windows.Forms.PropertyGrid();
-            this.resultWindow = new GerberViewer.Views.GerberSampleWindow();
+            this.tabPage_Log = new System.Windows.Forms.TabPage();
+            this.txtManifestInfo = new System.Windows.Forms.TextBox();
             this.resultTabControl.SuspendLayout();
             this.tabOrderView.SuspendLayout();
             this.tabDiagnostics.SuspendLayout();
@@ -59,9 +59,9 @@ namespace GerberViewer.Views
             this.split_AlignContain.Panel1.SuspendLayout();
             this.split_AlignContain.Panel2.SuspendLayout();
             this.split_AlignContain.SuspendLayout();
-            this.tabPage_Params.SuspendLayout();
-            this.tabPage_ListMap.SuspendLayout();
             this.infotabControl.SuspendLayout();
+            this.tabPage_ListMap.SuspendLayout();
+            this.tabPage_Params.SuspendLayout();
             this.tabPage_Log.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -222,6 +222,27 @@ namespace GerberViewer.Views
             this.tabStitchedImage.TabIndex = 2;
             this.tabStitchedImage.Text = "Stitched Result";
             // 
+            // resultWindow
+            // 
+            this.resultWindow.DefaultRoiSize = 128;
+            this.resultWindow.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.resultWindow.EnableDoubleClickZoom = false;
+            this.resultWindow.EnableInfo = true;
+            this.resultWindow.EnableInfoFromUser = false;
+            this.resultWindow.EnableMouseWheelZoom = true;
+            this.resultWindow.Location = new System.Drawing.Point(0, 0);
+            this.resultWindow.LockRoiScale = false;
+            this.resultWindow.Name = "resultWindow";
+            this.resultWindow.Size = new System.Drawing.Size(772, 454);
+            this.resultWindow.SourceBitmap = null;
+            this.resultWindow.SourceHobject = null;
+            this.resultWindow.TabIndex = 1;
+            this.resultWindow.Tol_MagicWand = 50;
+            this.resultWindow.VisibleROI = true;
+            this.resultWindow.VisibleROIText = false;
+            this.resultWindow.WinOperate = 1;
+            this.resultWindow.ZoomRatio = 120;
+            // 
             // picStitchedImage
             // 
             this.picStitchedImage.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -237,7 +258,7 @@ namespace GerberViewer.Views
             this.tabComparison.Controls.Add(this.picComparison);
             this.tabComparison.Location = new System.Drawing.Point(8, 39);
             this.tabComparison.Name = "tabComparison";
-            this.tabComparison.Size = new System.Drawing.Size(512, 372);
+            this.tabComparison.Size = new System.Drawing.Size(772, 454);
             this.tabComparison.TabIndex = 3;
             this.tabComparison.Text = "Sample Comparison";
             // 
@@ -246,7 +267,7 @@ namespace GerberViewer.Views
             this.picComparison.Dock = System.Windows.Forms.DockStyle.Fill;
             this.picComparison.Location = new System.Drawing.Point(0, 0);
             this.picComparison.Name = "picComparison";
-            this.picComparison.Size = new System.Drawing.Size(512, 372);
+            this.picComparison.Size = new System.Drawing.Size(772, 454);
             this.picComparison.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.picComparison.TabIndex = 0;
             this.picComparison.TabStop = false;
@@ -256,7 +277,7 @@ namespace GerberViewer.Views
             this.tabLogs.Controls.Add(this.lstTab3Log);
             this.tabLogs.Location = new System.Drawing.Point(8, 39);
             this.tabLogs.Name = "tabLogs";
-            this.tabLogs.Size = new System.Drawing.Size(512, 372);
+            this.tabLogs.Size = new System.Drawing.Size(772, 454);
             this.tabLogs.TabIndex = 4;
             this.tabLogs.Text = "Logs";
             // 
@@ -266,7 +287,7 @@ namespace GerberViewer.Views
             this.lstTab3Log.ItemHeight = 25;
             this.lstTab3Log.Location = new System.Drawing.Point(0, 0);
             this.lstTab3Log.Name = "lstTab3Log";
-            this.lstTab3Log.Size = new System.Drawing.Size(512, 372);
+            this.lstTab3Log.Size = new System.Drawing.Size(772, 454);
             this.lstTab3Log.TabIndex = 0;
             // 
             // tableLayout_AlignControl
@@ -317,36 +338,6 @@ namespace GerberViewer.Views
             this.split_AlignContain.SplitterDistance = 300;
             this.split_AlignContain.TabIndex = 14;
             // 
-            // tabPage_Params
-            // 
-            this.tabPage_Params.Controls.Add(this.alignConfigGrid);
-            this.tabPage_Params.Location = new System.Drawing.Point(8, 39);
-            this.tabPage_Params.Name = "tabPage_Params";
-            this.tabPage_Params.Size = new System.Drawing.Size(284, 454);
-            this.tabPage_Params.TabIndex = 2;
-            this.tabPage_Params.Text = "Parameters";
-            this.tabPage_Params.UseVisualStyleBackColor = true;
-            // 
-            // tabPage_ListMap
-            // 
-            this.tabPage_ListMap.Controls.Add(this.lstCapturedImages);
-            this.tabPage_ListMap.Location = new System.Drawing.Point(8, 39);
-            this.tabPage_ListMap.Name = "tabPage_ListMap";
-            this.tabPage_ListMap.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage_ListMap.Size = new System.Drawing.Size(217, 302);
-            this.tabPage_ListMap.TabIndex = 0;
-            this.tabPage_ListMap.Text = "List Map";
-            this.tabPage_ListMap.UseVisualStyleBackColor = true;
-            // 
-            // lstCapturedImages
-            // 
-            this.lstCapturedImages.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.lstCapturedImages.ItemHeight = 25;
-            this.lstCapturedImages.Location = new System.Drawing.Point(3, 3);
-            this.lstCapturedImages.Name = "lstCapturedImages";
-            this.lstCapturedImages.Size = new System.Drawing.Size(211, 296);
-            this.lstCapturedImages.TabIndex = 6;
-            // 
             // infotabControl
             // 
             this.infotabControl.Controls.Add(this.tabPage_ListMap);
@@ -359,27 +350,35 @@ namespace GerberViewer.Views
             this.infotabControl.Size = new System.Drawing.Size(300, 501);
             this.infotabControl.TabIndex = 0;
             // 
-            // txtManifestInfo
+            // tabPage_ListMap
             // 
-            this.txtManifestInfo.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.txtManifestInfo.Location = new System.Drawing.Point(3, 3);
-            this.txtManifestInfo.Multiline = true;
-            this.txtManifestInfo.Name = "txtManifestInfo";
-            this.txtManifestInfo.ReadOnly = true;
-            this.txtManifestInfo.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtManifestInfo.Size = new System.Drawing.Size(211, 296);
-            this.txtManifestInfo.TabIndex = 11;
+            this.tabPage_ListMap.Controls.Add(this.lstCapturedImages);
+            this.tabPage_ListMap.Location = new System.Drawing.Point(8, 39);
+            this.tabPage_ListMap.Name = "tabPage_ListMap";
+            this.tabPage_ListMap.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPage_ListMap.Size = new System.Drawing.Size(284, 454);
+            this.tabPage_ListMap.TabIndex = 0;
+            this.tabPage_ListMap.Text = "List Map";
+            this.tabPage_ListMap.UseVisualStyleBackColor = true;
             // 
-            // tabPage_Log
+            // lstCapturedImages
             // 
-            this.tabPage_Log.Controls.Add(this.txtManifestInfo);
-            this.tabPage_Log.Location = new System.Drawing.Point(8, 39);
-            this.tabPage_Log.Name = "tabPage_Log";
-            this.tabPage_Log.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage_Log.Size = new System.Drawing.Size(217, 302);
-            this.tabPage_Log.TabIndex = 1;
-            this.tabPage_Log.Text = "Infos";
-            this.tabPage_Log.UseVisualStyleBackColor = true;
+            this.lstCapturedImages.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.lstCapturedImages.ItemHeight = 25;
+            this.lstCapturedImages.Location = new System.Drawing.Point(3, 3);
+            this.lstCapturedImages.Name = "lstCapturedImages";
+            this.lstCapturedImages.Size = new System.Drawing.Size(278, 448);
+            this.lstCapturedImages.TabIndex = 6;
+            // 
+            // tabPage_Params
+            // 
+            this.tabPage_Params.Controls.Add(this.alignConfigGrid);
+            this.tabPage_Params.Location = new System.Drawing.Point(8, 39);
+            this.tabPage_Params.Name = "tabPage_Params";
+            this.tabPage_Params.Size = new System.Drawing.Size(284, 454);
+            this.tabPage_Params.TabIndex = 2;
+            this.tabPage_Params.Text = "Parameters";
+            this.tabPage_Params.UseVisualStyleBackColor = true;
             // 
             // alignConfigGrid
             // 
@@ -389,26 +388,27 @@ namespace GerberViewer.Views
             this.alignConfigGrid.Size = new System.Drawing.Size(284, 454);
             this.alignConfigGrid.TabIndex = 1;
             // 
-            // resultWindow
+            // tabPage_Log
             // 
-            this.resultWindow.DefaultRoiSize = 128;
-            this.resultWindow.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.resultWindow.EnableDoubleClickZoom = false;
-            this.resultWindow.EnableInfo = true;
-            this.resultWindow.EnableInfoFromUser = false;
-            this.resultWindow.EnableMouseWheelZoom = true;
-            this.resultWindow.Location = new System.Drawing.Point(0, 0);
-            this.resultWindow.LockRoiScale = false;
-            this.resultWindow.Name = "resultWindow";
-            this.resultWindow.Size = new System.Drawing.Size(772, 454);
-            this.resultWindow.SourceBitmap = null;
-            this.resultWindow.SourceHobject = null;
-            this.resultWindow.TabIndex = 1;
-            this.resultWindow.Tol_MagicWand = 50;
-            this.resultWindow.VisibleROI = true;
-            this.resultWindow.VisibleROIText = false;
-            this.resultWindow.WinOperate = 1;
-            this.resultWindow.ZoomRatio = 120;
+            this.tabPage_Log.Controls.Add(this.txtManifestInfo);
+            this.tabPage_Log.Location = new System.Drawing.Point(8, 39);
+            this.tabPage_Log.Name = "tabPage_Log";
+            this.tabPage_Log.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPage_Log.Size = new System.Drawing.Size(284, 454);
+            this.tabPage_Log.TabIndex = 1;
+            this.tabPage_Log.Text = "Infos";
+            this.tabPage_Log.UseVisualStyleBackColor = true;
+            // 
+            // txtManifestInfo
+            // 
+            this.txtManifestInfo.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.txtManifestInfo.Location = new System.Drawing.Point(3, 3);
+            this.txtManifestInfo.Multiline = true;
+            this.txtManifestInfo.Name = "txtManifestInfo";
+            this.txtManifestInfo.ReadOnly = true;
+            this.txtManifestInfo.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+            this.txtManifestInfo.Size = new System.Drawing.Size(278, 448);
+            this.txtManifestInfo.TabIndex = 11;
             // 
             // AlignStitchingControl
             // 
@@ -430,9 +430,9 @@ namespace GerberViewer.Views
             this.split_AlignContain.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.split_AlignContain)).EndInit();
             this.split_AlignContain.ResumeLayout(false);
-            this.tabPage_Params.ResumeLayout(false);
-            this.tabPage_ListMap.ResumeLayout(false);
             this.infotabControl.ResumeLayout(false);
+            this.tabPage_ListMap.ResumeLayout(false);
+            this.tabPage_Params.ResumeLayout(false);
             this.tabPage_Log.ResumeLayout(false);
             this.tabPage_Log.PerformLayout();
             this.ResumeLayout(false);
