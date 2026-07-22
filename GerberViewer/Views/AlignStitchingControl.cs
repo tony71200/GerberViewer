@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using HalconDotNet;
 using GerberViewer.Stitching.Alignment;
 using GerberViewer.Stitching.Arrangement;
 using GerberViewer.Stitching.Comparison;
@@ -24,6 +25,8 @@ namespace GerberViewer.Views
         private CancellationTokenSource _runCancellation;
         private readonly Elog_1_0.Elog _logger = new Elog_1_0.Elog();
         private AlignStitchWorkflowResult _lastWorkflowResult;
+        private SampleComparisonResult _lastComparisonResult;
+        private string _lastPublishedStitchedPath;
 
         public WorkflowContext WorkflowContext
         {
@@ -176,6 +179,8 @@ namespace GerberViewer.Views
             {
                 sampleComparisonControl.ClearComparisonResult();
                 _lastWorkflowResult = null;
+                _lastComparisonResult = null;
+                _lastPublishedStitchedPath = null;
                 var svc = new AlignStitchWorkflowService(null, null);
                 var progress = new Progress<WorkflowProgress>(p =>
                 {
@@ -200,6 +205,7 @@ namespace GerberViewer.Views
                 var publishedStitchedPath = Path.Combine(finalRunDir, Path.GetFileName(result.Report.FinalOutputPath));
                 result.Report.FinalOutputPath = publishedStitchedPath;
                 BindPublishedComparison(comparison, finalRunDir, publishedStitchedPath);
+                ShowPublishedStitchedResult();
                 if (_workflowContext != null)
                 {
                     _workflowContext.LastStitchedOutputPath = publishedStitchedPath;
@@ -229,7 +235,7 @@ namespace GerberViewer.Views
         }
 
         private void btnCancelAlignStitch_Click(object sender, EventArgs e) { if (_runCancellation != null) _runCancellation.Cancel(); }
-        private void ClearManifestState() { _manifest = null; _lastWorkflowResult = null; txtManifestPath.Text = string.Empty; txtManifestInfo.Clear(); txtDiagnostics.Clear(); sampleComparisonControl.ClearComparisonResult(); _capturedImages = new List<CapturedImageInfo>(); lstCapturedImages.Items.Clear(); orderPathCanvas.SetCapturedImages(_capturedImages); }
+        private void ClearManifestState() { _manifest = null; _lastWorkflowResult = null; _lastComparisonResult = null; _lastPublishedStitchedPath = null; txtManifestPath.Text = string.Empty; txtManifestInfo.Clear(); txtDiagnostics.Clear(); sampleComparisonControl.ClearComparisonResult(); _capturedImages = new List<CapturedImageInfo>(); lstCapturedImages.Items.Clear(); orderPathCanvas.SetCapturedImages(_capturedImages); }
 
         private bool ValidateRunInputs()
         {
@@ -287,6 +293,8 @@ namespace GerberViewer.Views
 
         private void BindPublishedComparison(SampleComparisonResult comparison, string finalRunDir, string publishedStitchedPath)
         {
+            _lastComparisonResult = comparison;
+            _lastPublishedStitchedPath = publishedStitchedPath;
             if (comparison == null) return;
             var comparisonDir = Path.Combine(finalRunDir, "comparison");
             comparison.SamplePreviewPath = RebasePublishedPath(comparison.SamplePreviewPath, comparisonDir);
@@ -299,6 +307,80 @@ namespace GerberViewer.Views
             var samplePath = ResolveOptionalPath(manifestFolder, !string.IsNullOrWhiteSpace(_manifest.ProcessedSamplePath) ? _manifest.ProcessedSamplePath : _manifest.SourceRasterPath);
             sampleComparisonControl.SetComparisonResult(comparison, samplePath, publishedStitchedPath);
         }
+
+        private void ShowPublishedStitchedResult()
+        {
+            var path = chkShowSampleMask.Checked && _lastComparisonResult != null && !string.IsNullOrWhiteSpace(_lastComparisonResult.AlphaOverlayPath)
+                ? _lastComparisonResult.AlphaOverlayPath
+                : _lastPublishedStitchedPath;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+            HObject image = null;
+            try
+            {
+                HOperatorSet.ReadImage(out image, path);
+                resultWindow.SetSourceImage(image, true);
+                resultWindow.RenderImageOverlay(BuildStitchedOverlays());
+                resultTabControl.SelectedTab = tabStitchedImage;
+                _logger.WriteInfo("Stitched result displayed in tabStitchedImage using " + (chkShowSampleMask.Checked ? "sample overlap mask" : "stitched output") + ": " + path);
+            }
+            finally
+            {
+                if (image != null && image.IsInitialized()) image.Dispose();
+            }
+        }
+
+        private IList<Tuple<System.Drawing.Rectangle, string, string>> BuildStitchedOverlays()
+        {
+            var overlays = new List<Tuple<System.Drawing.Rectangle, string, string>>();
+            if (_lastWorkflowResult == null || _lastWorkflowResult.States == null || _capturedImages == null) return overlays;
+            var bounds = CalculateStitchedBounds(_lastWorkflowResult.States, _capturedImages);
+            foreach (var state in _lastWorkflowResult.States.OrderBy(s => s.OrderIndex))
+            {
+                var image = _capturedImages.FirstOrDefault(i => i.OrderIndex == state.OrderIndex);
+                var tile = _manifest == null || _manifest.Tiles == null ? null : _manifest.Tiles.FirstOrDefault(t => t.OrderIndex == state.OrderIndex);
+                var rect = state.HasValidPose && image != null ? ProjectedBounds(state.GlobalPose, image.Width, image.Height, bounds) : ExpectedTileBounds(tile, bounds);
+                if (rect.Width <= 0 || rect.Height <= 0) continue;
+                var color = state.AlignmentSucceeded ? "green" : "yellow";
+                overlays.Add(Tuple.Create(rect, color, ScoreLabel(state)));
+            }
+            return overlays;
+        }
+
+        private static System.Drawing.RectangleF CalculateStitchedBounds(IList<TileWorkflowState> states, IList<CapturedImageInfo> images)
+        {
+            var rects = states.Where(s => s.HasValidPose).Select(s => { var img = images.FirstOrDefault(i => i.OrderIndex == s.OrderIndex); return img == null ? System.Drawing.RectangleF.Empty : ProjectedBoundsF(s.GlobalPose, img.Width, img.Height); }).Where(r => r.Width > 0 && r.Height > 0).ToList();
+            if (rects.Count == 0) return System.Drawing.RectangleF.Empty;
+            var left = rects.Min(r => r.Left); var top = rects.Min(r => r.Top); var right = rects.Max(r => r.Right); var bottom = rects.Max(r => r.Bottom);
+            return System.Drawing.RectangleF.FromLTRB(left, top, right, bottom);
+        }
+
+        private static System.Drawing.Rectangle ExpectedTileBounds(SampleTileInfo tile, System.Drawing.RectangleF canvasBounds)
+        {
+            if (tile == null) return System.Drawing.Rectangle.Empty;
+            return new System.Drawing.Rectangle((int)Math.Round(tile.ExpectedX - canvasBounds.Left), (int)Math.Round(tile.ExpectedY - canvasBounds.Top), tile.Width, tile.Height);
+        }
+
+        private static System.Drawing.Rectangle ProjectedBounds(double[,] h, int width, int height, System.Drawing.RectangleF canvasBounds)
+        {
+            var r = ProjectedBoundsF(h, width, height);
+            return System.Drawing.Rectangle.FromLTRB((int)Math.Floor(r.Left - canvasBounds.Left), (int)Math.Floor(r.Top - canvasBounds.Top), (int)Math.Ceiling(r.Right - canvasBounds.Left), (int)Math.Ceiling(r.Bottom - canvasBounds.Top));
+        }
+
+        private static System.Drawing.RectangleF ProjectedBoundsF(double[,] h, int width, int height)
+        {
+            var xs = new[] { 0d, width, 0d, width }; var ys = new[] { 0d, 0d, height, height };
+            for (int i = 0; i < xs.Length; i++) { var x = xs[i]; var y = ys[i]; xs[i] = h[0, 0] * x + h[0, 1] * y + h[0, 2]; ys[i] = h[1, 0] * x + h[1, 1] * y + h[1, 2]; }
+            return System.Drawing.RectangleF.FromLTRB((float)xs.Min(), (float)ys.Min(), (float)xs.Max(), (float)ys.Max());
+        }
+
+        private static string ScoreLabel(TileWorkflowState state)
+        {
+            var score = state == null || state.Alignment == null ? double.NaN : (!double.IsNaN(state.Alignment.NccScore) ? state.Alignment.NccScore : state.Alignment.EccCorrelation);
+            if (double.IsNaN(score) || double.IsInfinity(score)) return "0";
+            return Math.Max(0, Math.Min(100, (int)Math.Round(score * 100))).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private void chkShowSampleMask_CheckedChanged(object sender, EventArgs e) { ShowPublishedStitchedResult(); }
 
         private static string RebasePublishedPath(string originalPath, string publishedDirectory)
         {
