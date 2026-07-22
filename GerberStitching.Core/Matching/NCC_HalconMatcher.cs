@@ -63,19 +63,19 @@ namespace GerberViewer.Stitching.Matching
                         options.NccNumLevels, out row, out column, out angle, out score);
                     cancellationToken.ThrowIfCancellationRequested();
                     if (score == null || score.Length <= 0)
-                        return WithTime(MatchResult.Failed(MatcherName, MatchFailureReason.CorrelationBelowThreshold, "HALCON find_ncc_model returned no match above NccMinScore."), sw);
+                        return WithTime(CreateCenterFallback(request, options, "HALCON find_ncc_model returned no match above NccMinScore."), sw);
 
                     var bestRow = row[0].D;
                     var bestColumn = column[0].D;
                     var bestAngle = angle[0].D;
                     var bestScore = score[0].D;
                     if (bestScore < options.NccMinScore)
-                        return WithTime(MatchResult.Failed(MatcherName, MatchFailureReason.CorrelationBelowThreshold, "HALCON NCC score is below NccMinScore."), sw);
+                        return WithTime(CreateCenterFallback(request, options, "HALCON NCC score is below NccMinScore."), sw);
 
                     var referenceToMoving = ReferenceToMovingFromHalcon(bestColumn, bestRow, bestAngle);
                     var movingToReference = new Transform2D(referenceToMoving).Invert();
                     var geometryFailure = ValidateNccGeometry(movingToReference, request.ReferenceImage, request.MovingImage, options);
-                    if (geometryFailure != null) return WithTime(geometryFailure, sw);
+                    if (geometryFailure != null) return WithTime(CreateCenterFallback(request, options, geometryFailure.FailureMessage), sw);
                     var result = new MatchResult
                     {
                         Success = true,
@@ -111,7 +111,7 @@ namespace GerberViewer.Stitching.Matching
             }
             catch (Exception ex)
             {
-                return WithTime(MatchResult.Failed(MatcherName, MatchFailureReason.RuntimeFailure, ex.Message), sw);
+                return WithTime(CreateCenterFallback(request, request == null ? null : request.Options, ex.Message), sw);
             }
             finally
             {
@@ -301,6 +301,38 @@ namespace GerberViewer.Stitching.Matching
             return string.Format(CultureInfo.InvariantCulture, "Rows={0}, Cols={1}, Type={2}, Channels={3}, ContentHash={4}", image.Rows, image.Cols, image.Type(), image.Channels(), CalculateMatContentHash(image));
         }
 #endif
+
+        private MatchResult CreateCenterFallback(MatchRequest request, MatcherOptions options, string reason)
+        {
+            var referenceCenterX = (request.ReferenceImage.Cols - 1) / 2.0;
+            var referenceCenterY = (request.ReferenceImage.Rows - 1) / 2.0;
+            var movingCenterX = (request.MovingImage.Cols - 1) / 2.0;
+            var movingCenterY = (request.MovingImage.Rows - 1) / 2.0;
+            var movingToReference = Transform2D.Translation(referenceCenterX - movingCenterX, referenceCenterY - movingCenterY);
+            var result = new MatchResult
+            {
+                Success = true,
+                MatcherName = MatcherName,
+                MovingToReferenceTransform = movingToReference,
+                TranslationX = movingToReference[0, 2],
+                TranslationY = movingToReference[1, 2],
+                RotationDeg = 0d,
+                Scale = 1d,
+                RawScore = double.NaN,
+                NormalizedConfidence = 0d,
+                OverlapRatio = MatcherGeometryValidator.CalculateSameSizeOverlap(request.ReferenceImage, request.MovingImage),
+                AlignedMovingImage = WarpMovingToReference(request.MovingImage, movingToReference, request.ReferenceImage.Size()),
+                FailureReason = MatchFailureReason.None,
+                Warning = "NCC_HalconMatcher fallback: " + reason
+            };
+            result.Diagnostics["Fallback"] = "true";
+            result.Diagnostics["FallbackReason"] = reason ?? string.Empty;
+            result.Diagnostics["FallbackHalconRow"] = referenceCenterY.ToString(CultureInfo.InvariantCulture);
+            result.Diagnostics["FallbackHalconColumn"] = referenceCenterX.ToString(CultureInfo.InvariantCulture);
+            result.Diagnostics["FallbackHalconAngleRad"] = "0";
+            result.Diagnostics["TransformDirection"] = "MovingImage -> ReferenceImage";
+            return result;
+        }
 
         private static Mat WarpMovingToReference(Mat movingImage, Transform2D movingToReference, OpenCvSharp.Size referenceSize)
         {
