@@ -7,9 +7,6 @@ Bạn đang sửa một solution C# WinForms production:
 ```text
 Repository:
 tony71200/GerberViewer
-
-Target branch:
-2026-07-21_use-agent.md-as-program-title
 ```
 
 Công nghệ:
