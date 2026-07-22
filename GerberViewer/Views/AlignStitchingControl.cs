@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using GerberViewer.Stitching.Alignment;
@@ -160,43 +161,223 @@ namespace GerberViewer.Views
         private async void btnRunAlignStitch_Click(object sender, EventArgs e)
         {
             if (_runCancellation != null) return;
-            var runDir = Path.Combine(txtOutputFolder.Text, "AlignStitch_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"), ".creating");
-            Directory.CreateDirectory(runDir); _logger.WriteInfo("Run start. Application-owned creating directory: " + runDir);
-            _runCancellation = new CancellationTokenSource(); btnRunAlignStitch.Enabled = false; btnCancelAlignStitch.Enabled = true; prgAlignStitch.Value = 0;
+            if (!ValidateRunInputs()) return;
+
+            var finalRunDir = Path.Combine(txtOutputFolder.Text, "AlignStitch_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
+            var creatingDir = Path.Combine(finalRunDir, ".creating");
+            Directory.CreateDirectory(creatingDir);
+            _logger.WriteInfo("Run start. Application-owned creating directory: " + creatingDir);
+            _runCancellation = new CancellationTokenSource();
+            SetRunControlsEnabled(false);
+            prgAlignStitch.Value = 0;
+            var runConfig = CloneConfigForRun(_config, creatingDir);
+
             try
             {
                 sampleComparisonControl.ClearComparisonResult();
+                _lastWorkflowResult = null;
                 var svc = new AlignStitchWorkflowService(null, null);
-                var progress = new Progress<WorkflowProgress>(p => { prgAlignStitch.Value = p.Total <= 0 ? 0 : Math.Min(100, p.Current * 100 / p.Total); if (p.Image != null) orderPathCanvas.SetSnapshot(BuildProgressSnapshot(p.Image.OrderIndex, OrderNodeState.Processing)); _logger.WriteInfo("OrderIndex " + (p.Image == null ? -1 : p.Image.OrderIndex) + " Stage " + p.Stage); });
-                var result = await svc.RunAsync(_config, _manifest, _capturedImages, progress, _runCancellation.Token);
+                var progress = new Progress<WorkflowProgress>(p =>
+                {
+                    prgAlignStitch.Value = p.Total <= 0 ? 0 : Math.Min(100, p.Current * 100 / p.Total);
+                    if (p.Image != null) orderPathCanvas.SetSnapshot(BuildProgressSnapshot(p.Image.OrderIndex, OrderNodeState.Processing));
+                    _logger.WriteInfo("OrderIndex " + (p.Image == null ? -1 : p.Image.OrderIndex) + " Stage " + p.Stage);
+                });
+
+                var result = await svc.RunAsync(runConfig, _manifest, _capturedImages, progress, _runCancellation.Token);
+                _runCancellation.Token.ThrowIfCancellationRequested();
                 _lastWorkflowResult = result;
-                foreach (var state in result.States) { var img = _capturedImages.FirstOrDefault(x => x.OrderIndex == state.OrderIndex); if (img != null) img.State = ToNodeState(state.Source); }
+                RebuildFinalStates(result);
                 orderPathCanvas.SetFinalStates(result.States, result.Report.RecoveryEdges);
                 RefreshDiagnostics();
                 if (!result.Report.Succeeded) throw new InvalidOperationException("Alignment did not produce verified poses for every tile; stitching publication is blocked.");
-                await GenerateAndBindComparisonAsync(result, _runCancellation.Token);
+
+                var comparison = await GenerateComparisonAsync(result, _runCancellation.Token);
+                _runCancellation.Token.ThrowIfCancellationRequested();
+                var reportPath = WriteProcessingReport(result.Report, creatingDir);
+                ValidateRunOutputs(result.Report, reportPath);
+                PublishRunDirectory(finalRunDir, creatingDir);
+                var publishedStitchedPath = Path.Combine(finalRunDir, Path.GetFileName(result.Report.FinalOutputPath));
+                result.Report.FinalOutputPath = publishedStitchedPath;
+                BindPublishedComparison(comparison, finalRunDir, publishedStitchedPath);
+                if (_workflowContext != null)
+                {
+                    _workflowContext.LastStitchedOutputPath = publishedStitchedPath;
+                    _workflowContext.AlignStitchConfig = _config;
+                    _workflowContext.NotifyChanged();
+                }
+                _logger.WriteInfo("Run published: " + finalRunDir);
             }
-            catch (OperationCanceledException) { _logger.WriteWarning("Run cancelled; no manifest/report was published."); }
-            catch (Exception ex) { _logger.WriteError("Run failed: " + ex); MessageBox.Show(this, ex.Message, "Align/Stitch failed", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-            finally { _runCancellation.Dispose(); _runCancellation = null; btnCancelAlignStitch.Enabled = false; UpdateRunState(); }
+            catch (OperationCanceledException)
+            {
+                _logger.WriteWarning("Run cancelled; completed output was not published.");
+                CleanupCreatingDirectory(creatingDir);
+            }
+            catch (Exception ex)
+            {
+                _logger.WriteError("Run failed: " + ex);
+                CleanupCreatingDirectory(creatingDir);
+                MessageBox.Show(this, ex.Message, "Align/Stitch failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                if (_runCancellation != null) _runCancellation.Dispose();
+                _runCancellation = null;
+                SetRunControlsEnabled(true);
+                UpdateRunState();
+            }
         }
 
         private void btnCancelAlignStitch_Click(object sender, EventArgs e) { if (_runCancellation != null) _runCancellation.Cancel(); }
         private void ClearManifestState() { _manifest = null; _lastWorkflowResult = null; txtManifestPath.Text = string.Empty; txtManifestInfo.Clear(); txtDiagnostics.Clear(); sampleComparisonControl.ClearComparisonResult(); _capturedImages = new List<CapturedImageInfo>(); lstCapturedImages.Items.Clear(); orderPathCanvas.SetCapturedImages(_capturedImages); }
 
-        private async System.Threading.Tasks.Task GenerateAndBindComparisonAsync(AlignStitchWorkflowResult workflowResult, CancellationToken token)
+        private bool ValidateRunInputs()
         {
-            if (workflowResult == null || workflowResult.Report == null || string.IsNullOrWhiteSpace(workflowResult.Report.FinalOutputPath) || _manifest == null) return;
+            if (_manifest == null) { ShowBlocked("Run blocked", new[] { "No validated manifest is loaded." }); return false; }
+            if (_capturedImages == null || _capturedImages.Count != (_manifest.Tiles == null ? -1 : _manifest.Tiles.Count)) { ShowBlocked("Run blocked", new[] { "Captured folder is not validated against the manifest." }); return false; }
+            if (string.IsNullOrWhiteSpace(txtOutputFolder.Text) || !Directory.Exists(txtOutputFolder.Text)) { sampleComparisonControl.ClearComparisonResult(); ShowBlocked("Run blocked", new[] { "Output folder is missing or invalid: " + (txtOutputFolder.Text ?? "-") }); return false; }
+            return true;
+        }
+
+        private static GerberViewer.Stitching.Models.AlignStitchConfig CloneConfigForRun(GerberViewer.Stitching.Models.AlignStitchConfig source, string creatingDir)
+        {
+            source = source ?? new GerberViewer.Stitching.Models.AlignStitchConfig();
+            return new GerberViewer.Stitching.Models.AlignStitchConfig
+            {
+                InputManifestPath = source.InputManifestPath, CapturedFolderPath = source.CapturedFolderPath, OutputPath = creatingDir, AlignmentMethod = source.AlignmentMethod,
+                NccMinScore = source.NccMinScore, EccMinCorrelation = source.EccMinCorrelation, MaxTranslationPixels = source.MaxTranslationPixels, MaxAbsRotationDeg = source.MaxAbsRotationDeg,
+                MinScale = source.MinScale, MaxScale = source.MaxScale, MinOverlapRatio = source.MinOverlapRatio, AllowNccOnlyAcceptance = source.AllowNccOnlyAcceptance,
+                AllowEccFromExpectedWhenNccFails = source.AllowEccFromExpectedWhenNccFails, EnableNeighborRecovery = source.EnableNeighborRecovery, EnableAnchorInterpolation = source.EnableAnchorInterpolation,
+                AllowExpectedGridFallback = source.AllowExpectedGridFallback, RequireManualConfirmationForExpectedGrid = source.RequireManualConfirmationForExpectedGrid, PreviewUpdateInterval = source.PreviewUpdateInterval,
+                MaxPreviewMegapixels = source.MaxPreviewMegapixels, TiffMode = source.TiffMode, BigTiffTileWidth = source.BigTiffTileWidth, BigTiffTileHeight = source.BigTiffTileHeight
+            };
+        }
+
+        private void RebuildFinalStates(AlignStitchWorkflowResult result)
+        {
+            foreach (var state in result.States)
+            {
+                var img = _capturedImages.FirstOrDefault(x => x.OrderIndex == state.OrderIndex);
+                if (img != null) img.State = ToNodeState(state.Source);
+            }
+        }
+
+        private void SetRunControlsEnabled(bool enabled)
+        {
+            btnSelectManifest.Enabled = enabled;
+            btnOpenImageFolder.Enabled = enabled;
+            btnSelectOutputFolder.Enabled = enabled;
+            alignConfigGrid.Enabled = enabled;
+            lstCapturedImages.Enabled = enabled;
+            btnRunAlignStitch.Enabled = enabled && _runCancellation == null;
+            btnCancelAlignStitch.Enabled = !enabled;
+        }
+
+        private async System.Threading.Tasks.Task<SampleComparisonResult> GenerateComparisonAsync(AlignStitchWorkflowResult workflowResult, CancellationToken token)
+        {
+            if (workflowResult == null || workflowResult.Report == null || string.IsNullOrWhiteSpace(workflowResult.Report.FinalOutputPath) || _manifest == null) return null;
             var stitchedPath = workflowResult.Report.FinalOutputPath;
             var outputDir = Path.Combine(Path.GetDirectoryName(stitchedPath) ?? txtOutputFolder.Text, "comparison");
             var service = new SampleComparisonService();
             var request = new SampleComparisonRequest { Manifest = _manifest, StitchedImagePath = stitchedPath, OutputDirectory = outputDir, AllowNonAuthoritativeVisualPreview = true, Alpha = 0.5, MaxPreviewMegapixels = _config.MaxPreviewMegapixels };
             var comparison = await System.Threading.Tasks.Task.Run(() => service.Generate(request, token), token);
+            _logger.WriteInfo("Sample comparison generated: " + comparison.MetadataPath);
+            return comparison;
+        }
+
+        private void BindPublishedComparison(SampleComparisonResult comparison, string finalRunDir, string publishedStitchedPath)
+        {
+            if (comparison == null) return;
+            var comparisonDir = Path.Combine(finalRunDir, "comparison");
+            comparison.SamplePreviewPath = RebasePublishedPath(comparison.SamplePreviewPath, comparisonDir);
+            comparison.StitchedPreviewPath = RebasePublishedPath(comparison.StitchedPreviewPath, comparisonDir);
+            comparison.AlphaOverlayPath = RebasePublishedPath(comparison.AlphaOverlayPath, comparisonDir);
+            comparison.AbsoluteDifferencePath = RebasePublishedPath(comparison.AbsoluteDifferencePath, comparisonDir);
+            comparison.EdgeOverlayPath = RebasePublishedPath(comparison.EdgeOverlayPath, comparisonDir);
+            comparison.MetadataPath = RebasePublishedPath(comparison.MetadataPath, comparisonDir);
             var manifestFolder = Path.GetDirectoryName(txtManifestPath.Text) ?? string.Empty;
             var samplePath = ResolveOptionalPath(manifestFolder, !string.IsNullOrWhiteSpace(_manifest.ProcessedSamplePath) ? _manifest.ProcessedSamplePath : _manifest.SourceRasterPath);
-            sampleComparisonControl.SetComparisonResult(comparison, samplePath, stitchedPath);
-            _logger.WriteInfo("Sample comparison generated: " + comparison.MetadataPath);
+            sampleComparisonControl.SetComparisonResult(comparison, samplePath, publishedStitchedPath);
         }
+
+        private static string RebasePublishedPath(string originalPath, string publishedDirectory)
+        {
+            return string.IsNullOrWhiteSpace(originalPath) ? originalPath : Path.Combine(publishedDirectory, Path.GetFileName(originalPath));
+        }
+        private string WriteProcessingReport(ProcessingReport report, string creatingDir)
+        {
+            var path = Path.Combine(creatingDir, "processing_report.json");
+            var sb = new StringBuilder();
+            sb.AppendLine("{");
+            AppendJson(sb, "succeeded", report.Succeeded ? "true" : "false", true, true);
+            AppendJson(sb, "runStatus", report.RunStatus.ToString(), true);
+            AppendJson(sb, "finalOutputPath", report.FinalOutputPath, true);
+            sb.AppendLine("  \"messages\": [");
+            AppendJsonArray(sb, report.Messages);
+            sb.AppendLine("  ],");
+            sb.AppendLine("  \"warnings\": [");
+            AppendJsonArray(sb, report.Warnings);
+            sb.AppendLine("  ],");
+            sb.AppendLine("  \"tileReports\": [");
+            for (int i = 0; i < report.TileReports.Count; i++)
+            {
+                var r = report.TileReports[i];
+                sb.Append("    {");
+                sb.Append("\"orderIndex\": ").Append(r.OrderIndex).Append(", ");
+                sb.Append("\"row\": ").Append(r.Row).Append(", ");
+                sb.Append("\"column\": ").Append(r.Column).Append(", ");
+                sb.Append("\"stage\": \"").Append(EscapeJson(r.PipelineStage)).Append("\", ");
+                sb.Append("\"nccScore\": ").Append(FormatJsonNumber(r.NccScore)).Append(", ");
+                sb.Append("\"eccCorrelation\": ").Append(FormatJsonNumber(r.EccCorrelation)).Append(", ");
+                sb.Append("\"preprocessingVariant\": \"").Append(EscapeJson(r.PreprocessingVariant)).Append("\", ");
+                sb.Append("\"rejectionReason\": \"").Append(EscapeJson(r.RejectionReason)).Append("\"}");
+                sb.AppendLine(i + 1 == report.TileReports.Count ? string.Empty : ",");
+            }
+            sb.AppendLine("  ]");
+            sb.AppendLine("}");
+            File.WriteAllText(path, sb.ToString());
+            return path;
+        }
+
+        private static void ValidateRunOutputs(ProcessingReport report, string reportPath)
+        {
+            if (report == null || string.IsNullOrWhiteSpace(report.FinalOutputPath) || !File.Exists(report.FinalOutputPath)) throw new IOException("Stitched output validation failed before publish.");
+            if (string.IsNullOrWhiteSpace(reportPath) || !File.Exists(reportPath)) throw new IOException("Processing report was not written before publish.");
+            using (var reopened = new System.Drawing.Bitmap(report.FinalOutputPath))
+                if (reopened.Width <= 0 || reopened.Height <= 0) throw new IOException("Stitched TIFF reopen validation returned invalid dimensions.");
+            var comparisonMetadata = Path.Combine(Path.GetDirectoryName(report.FinalOutputPath), "comparison", "comparison_metadata.json");
+            if (!File.Exists(comparisonMetadata)) throw new IOException("Comparison metadata was not generated before publish.");
+        }
+
+        private static void PublishRunDirectory(string finalRunDir, string creatingDir)
+        {
+            if (!Directory.Exists(creatingDir)) throw new DirectoryNotFoundException("Creating directory missing before publish: " + creatingDir);
+            foreach (var file in Directory.GetFiles(creatingDir)) File.Move(file, Path.Combine(finalRunDir, Path.GetFileName(file)));
+            foreach (var dir in Directory.GetDirectories(creatingDir)) Directory.Move(dir, Path.Combine(finalRunDir, Path.GetFileName(dir)));
+            Directory.Delete(creatingDir, false);
+        }
+
+        private static void CleanupCreatingDirectory(string creatingDir)
+        {
+            if (!string.IsNullOrWhiteSpace(creatingDir) && Directory.Exists(creatingDir)) Directory.Delete(creatingDir, true);
+        }
+
+        private static void AppendJson(StringBuilder sb, string name, string value, bool comma, bool raw = false)
+        {
+            sb.Append("  \"").Append(name).Append("\": ");
+            if (raw) sb.Append(value); else sb.Append("\"").Append(EscapeJson(value)).Append("\"");
+            sb.AppendLine(comma ? "," : string.Empty);
+        }
+
+        private static void AppendJsonArray(StringBuilder sb, IList<string> values)
+        {
+            values = values ?? new List<string>();
+            for (int i = 0; i < values.Count; i++) sb.Append("    \"").Append(EscapeJson(values[i])).Append(i + 1 == values.Count ? "\"\n" : "\",\n");
+        }
+
+        private static string FormatJsonNumber(double value) { return double.IsNaN(value) || double.IsInfinity(value) ? "null" : value.ToString("R", System.Globalization.CultureInfo.InvariantCulture); }
+        private static string EscapeJson(string value) { return (value ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\""); }
+
         private void ShowBlocked(string title, IEnumerable<string> errors) { var message = string.Join(Environment.NewLine, errors); _logger.WriteWarning(title + ": " + message); MessageBox.Show(this, message, title, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         private void UpdateRunState() { btnRunAlignStitch.Enabled = _runCancellation == null && _manifest != null && _capturedImages.Count == (_manifest.Tiles == null ? -1 : _manifest.Tiles.Count) && Directory.Exists(txtOutputFolder.Text); }
         private static OrderNodeState ToNodeState(PoseSource source) { if (source == PoseSource.SampleAlignment) return OrderNodeState.SampleAlignOk; if (source == PoseSource.NeighborAlignment) return OrderNodeState.NeighborAlignOk; if (source == PoseSource.AnchorAdjusted) return OrderNodeState.AnchorAdjusted; if (source == PoseSource.Interpolated) return OrderNodeState.Interpolated; if (source == PoseSource.Manual) return OrderNodeState.Manual; if (source == PoseSource.Excluded) return OrderNodeState.Excluded; if (source == PoseSource.ExpectedGridOffset) return OrderNodeState.ExpectedGridOffset; return OrderNodeState.Failed; }
