@@ -71,6 +71,7 @@ namespace GerberViewer.Stitching.Alignment
                 ResizeIfRequested(ref capturedMat, options.NormalizedWidth, options.NormalizedHeight);
                 Normalize(sampleMat, options.ContrastNormalization);
                 Normalize(capturedMat, options.ContrastNormalization);
+                Threshold(capturedMat, options);
                 if (!SkipThresholdAndEdgePreparation)
                 {
                     ApplyPolarity(sampleMat, capturedMat, polarity);

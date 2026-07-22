@@ -37,8 +37,8 @@ namespace GerberViewer.Stitching.Alignment
     {
         public ContrastNormalizationMode ContrastNormalization { get; set; } = ContrastNormalizationMode.MinMax;
         public PolarityMode Polarity { get; set; } = PolarityMode.Auto;
-        public ThresholdMode Threshold { get; set; } = ThresholdMode.Otsu;
-        public byte FixedThreshold { get; set; } = 128;
+        public ThresholdMode Threshold { get; set; } = ThresholdMode.Fixed;
+        public byte FixedThreshold { get; set; } = 180;
         public int AdaptiveRadius { get; set; } = 15;
         public EdgePreparationMode EdgePreparation { get; set; } = EdgePreparationMode.Sobel;
         public bool ApplyGerberContentMask { get; set; } = true;
