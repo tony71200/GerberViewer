@@ -123,6 +123,11 @@ namespace GerberStitching.Tests.Comparison
                 AssertTrue(result.Metrics.ValidOverlapRatio > 0.5, "Valid overlap ratio must reflect overlapping non-background content.");
                 AssertTrue(result.Metrics.BinaryMaskIoU >= 0 && result.Metrics.BinaryMaskIoU <= 1, "Binary mask IoU must be normalized.");
                 AssertTrue(result.Metrics.EdgeOverlap >= 0 && result.Metrics.EdgeOverlap <= 1, "Edge overlap must be normalized.");
+                AssertTrue(result.Metrics.EdgePrecision >= 0 && result.Metrics.EdgePrecision <= 1, "Edge precision must be normalized.");
+                AssertTrue(result.Metrics.EdgeRecall >= 0 && result.Metrics.EdgeRecall <= 1, "Edge recall must be normalized.");
+                AssertTrue(result.Metrics.EdgeF1Score >= 0 && result.Metrics.EdgeF1Score <= 1, "Edge F1 must be normalized.");
+                AssertTrue(result.Metrics.P95EdgeDistancePixels >= result.Metrics.MeanEdgeDistancePixels, "P95 edge distance should not be below the mean for this synthetic case.");
+                AssertTrue(result.Metrics.AbsoluteDifferenceP95 >= result.Metrics.AbsoluteDifferenceMean, "P95 absolute difference should not be below mean for this synthetic case.");
             }
         }
 

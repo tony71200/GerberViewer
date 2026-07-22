@@ -136,6 +136,18 @@
     <Compile Include="Views\AlignStitchingControl.Designer.cs">
       <DependentUpon>AlignStitchingControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Views\ComparisonImageView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\ComparisonImageView.Designer.cs">
+      <DependentUpon>ComparisonImageView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\SampleComparisonControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\SampleComparisonControl.Designer.cs">
+      <DependentUpon>SampleComparisonControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="Workflow\Models\WorkflowContext.cs" />
     <Compile Include="Workflow\HalconRuntimeValidator.cs" />
     <Compile Include="Views\ManualAlignmentDialog.cs">
@@ -154,6 +166,12 @@
     </Compile>
     <EmbeddedResource Include="Views\AlignStitchingControl.resx">
       <DependentUpon>AlignStitchingControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\ComparisonImageView.resx">
+      <DependentUpon>ComparisonImageView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\SampleComparisonControl.resx">
+      <DependentUpon>SampleComparisonControl.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Views\CreateGerberSampleControl.resx">
       <DependentUpon>CreateGerberSampleControl.cs</DependentUpon>

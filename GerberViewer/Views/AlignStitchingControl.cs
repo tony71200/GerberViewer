@@ -6,6 +6,7 @@ using System.Threading;
 using System.Windows.Forms;
 using GerberViewer.Stitching.Alignment;
 using GerberViewer.Stitching.Arrangement;
+using GerberViewer.Stitching.Comparison;
 using GerberViewer.Stitching.DesignControls;
 using GerberViewer.Stitching.Models;
 using GerberViewer.Workflow.Models;
@@ -138,6 +139,7 @@ namespace GerberViewer.Views
             {
                 dlg.Description = "Select output root folder (the root will not be deleted)";
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                sampleComparisonControl.ClearComparisonResult();
                 txtOutputFolder.Text = dlg.SelectedPath; _config.OutputPath = dlg.SelectedPath; if (_workflowContext != null) { _workflowContext.OutputDirectory = dlg.SelectedPath; _workflowContext.AlignStitchConfig = _config; _workflowContext.NotifyChanged(); } _logger.WriteInfo("Output root selected: " + dlg.SelectedPath); UpdateRunState();
             }
         }
@@ -148,6 +150,7 @@ namespace GerberViewer.Views
             if (_manifest == null || string.IsNullOrWhiteSpace(txtImageFolder.Text)) { UpdateRunState(); return; }
             var result = _capturedImageLoader.Load(txtImageFolder.Text, txtManifestPath.Text);
             if (!result.Succeeded) { lblImageCount.Text = "Images: blocked"; ShowBlocked("Captured validation blocked", result.Errors); UpdateRunState(); return; }
+            sampleComparisonControl.ClearComparisonResult();
             _capturedImages = result.Images;
             foreach (var image in _capturedImages) lstCapturedImages.Items.Add(string.Format("{0:000}: R{1} C{2} - {3}", image.OrderIndex, image.Row, image.Column, Path.GetFileName(image.FilePath)));
             lblImageCount.Text = "Images: " + _capturedImages.Count + " / " + result.ExpectedTileCount;
@@ -162,6 +165,7 @@ namespace GerberViewer.Views
             _runCancellation = new CancellationTokenSource(); btnRunAlignStitch.Enabled = false; btnCancelAlignStitch.Enabled = true; prgAlignStitch.Value = 0;
             try
             {
+                sampleComparisonControl.ClearComparisonResult();
                 var svc = new AlignStitchWorkflowService(null, null);
                 var progress = new Progress<WorkflowProgress>(p => { prgAlignStitch.Value = p.Total <= 0 ? 0 : Math.Min(100, p.Current * 100 / p.Total); if (p.Image != null) orderPathCanvas.SetSnapshot(BuildProgressSnapshot(p.Image.OrderIndex, OrderNodeState.Processing)); _logger.WriteInfo("OrderIndex " + (p.Image == null ? -1 : p.Image.OrderIndex) + " Stage " + p.Stage); });
                 var result = await svc.RunAsync(_config, _manifest, _capturedImages, progress, _runCancellation.Token);
@@ -170,6 +174,7 @@ namespace GerberViewer.Views
                 orderPathCanvas.SetFinalStates(result.States, result.Report.RecoveryEdges);
                 RefreshDiagnostics();
                 if (!result.Report.Succeeded) throw new InvalidOperationException("Alignment did not produce verified poses for every tile; stitching publication is blocked.");
+                await GenerateAndBindComparisonAsync(result, _runCancellation.Token);
             }
             catch (OperationCanceledException) { _logger.WriteWarning("Run cancelled; no manifest/report was published."); }
             catch (Exception ex) { _logger.WriteError("Run failed: " + ex); MessageBox.Show(this, ex.Message, "Align/Stitch failed", MessageBoxButtons.OK, MessageBoxIcon.Error); }
@@ -177,11 +182,26 @@ namespace GerberViewer.Views
         }
 
         private void btnCancelAlignStitch_Click(object sender, EventArgs e) { if (_runCancellation != null) _runCancellation.Cancel(); }
-        private void ClearManifestState() { _manifest = null; _lastWorkflowResult = null; txtManifestPath.Text = string.Empty; txtManifestInfo.Clear(); txtDiagnostics.Clear(); _capturedImages = new List<CapturedImageInfo>(); lstCapturedImages.Items.Clear(); orderPathCanvas.SetCapturedImages(_capturedImages); }
+        private void ClearManifestState() { _manifest = null; _lastWorkflowResult = null; txtManifestPath.Text = string.Empty; txtManifestInfo.Clear(); txtDiagnostics.Clear(); sampleComparisonControl.ClearComparisonResult(); _capturedImages = new List<CapturedImageInfo>(); lstCapturedImages.Items.Clear(); orderPathCanvas.SetCapturedImages(_capturedImages); }
+
+        private async System.Threading.Tasks.Task GenerateAndBindComparisonAsync(AlignStitchWorkflowResult workflowResult, CancellationToken token)
+        {
+            if (workflowResult == null || workflowResult.Report == null || string.IsNullOrWhiteSpace(workflowResult.Report.FinalOutputPath) || _manifest == null) return;
+            var stitchedPath = workflowResult.Report.FinalOutputPath;
+            var outputDir = Path.Combine(Path.GetDirectoryName(stitchedPath) ?? txtOutputFolder.Text, "comparison");
+            var service = new SampleComparisonService();
+            var request = new SampleComparisonRequest { Manifest = _manifest, StitchedImagePath = stitchedPath, OutputDirectory = outputDir, AllowNonAuthoritativeVisualPreview = true, Alpha = 0.5, MaxPreviewMegapixels = _config.MaxPreviewMegapixels };
+            var comparison = await System.Threading.Tasks.Task.Run(() => service.Generate(request, token), token);
+            var manifestFolder = Path.GetDirectoryName(txtManifestPath.Text) ?? string.Empty;
+            var samplePath = ResolveOptionalPath(manifestFolder, !string.IsNullOrWhiteSpace(_manifest.ProcessedSamplePath) ? _manifest.ProcessedSamplePath : _manifest.SourceRasterPath);
+            sampleComparisonControl.SetComparisonResult(comparison, samplePath, stitchedPath);
+            _logger.WriteInfo("Sample comparison generated: " + comparison.MetadataPath);
+        }
         private void ShowBlocked(string title, IEnumerable<string> errors) { var message = string.Join(Environment.NewLine, errors); _logger.WriteWarning(title + ": " + message); MessageBox.Show(this, message, title, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         private void UpdateRunState() { btnRunAlignStitch.Enabled = _runCancellation == null && _manifest != null && _capturedImages.Count == (_manifest.Tiles == null ? -1 : _manifest.Tiles.Count) && Directory.Exists(txtOutputFolder.Text); }
         private static OrderNodeState ToNodeState(PoseSource source) { if (source == PoseSource.SampleAlignment) return OrderNodeState.SampleAlignOk; if (source == PoseSource.NeighborAlignment) return OrderNodeState.NeighborAlignOk; if (source == PoseSource.AnchorAdjusted) return OrderNodeState.AnchorAdjusted; if (source == PoseSource.Interpolated) return OrderNodeState.Interpolated; if (source == PoseSource.Manual) return OrderNodeState.Manual; if (source == PoseSource.Excluded) return OrderNodeState.Excluded; if (source == PoseSource.ExpectedGridOffset) return OrderNodeState.ExpectedGridOffset; return OrderNodeState.Failed; }
         private static string ResolveTilePath(string manifestFolder, string expectedPath) { return Path.IsPathRooted(expectedPath) ? expectedPath : Path.Combine(manifestFolder, expectedPath); }
+        private static string ResolveOptionalPath(string manifestFolder, string path) { if (string.IsNullOrWhiteSpace(path)) return string.Empty; return Path.IsPathRooted(path) ? path : Path.Combine(manifestFolder, path); }
         private static string CommonParent(IList<string> paths) { if (paths == null || paths.Count == 0) return string.Empty; var dirs = paths.Select(Path.GetDirectoryName).Where(x => !string.IsNullOrEmpty(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList(); return dirs.Count == 1 ? dirs[0] : string.Join("; ", dirs.Take(3).ToArray()); }
 
         private PathCanvasSnapshot BuildProgressSnapshot(int processingOrderIndex, OrderNodeState processingState)

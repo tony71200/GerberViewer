@@ -123,6 +123,11 @@ namespace GerberViewer.Stitching.Comparison
             using (var stitchedEdges = Edges(stitchedGray))
             using (var edgeIntersect = new Mat())
             using (var edgeUnion = new Mat())
+            using (var sampleEdgeSupport = DilateEdges(sampleEdges))
+            using (var stitchedEdgeSupport = DilateEdges(stitchedEdges))
+            using (var matchedRealityEdges = new Mat())
+            using (var matchedSampleEdges = new Mat())
+            using (var absDiff = new Mat())
             {
                 Cv2.BitwiseAnd(sampleMask, stitchedMask, overlap);
                 Cv2.BitwiseOr(sampleMask, stitchedMask, union);
@@ -130,13 +135,29 @@ namespace GerberViewer.Stitching.Comparison
                 Cv2.BitwiseOr(sampleBinary, stitchedBinary, binaryUnion);
                 Cv2.BitwiseAnd(sampleEdges, stitchedEdges, edgeIntersect);
                 Cv2.BitwiseOr(sampleEdges, stitchedEdges, edgeUnion);
+                Cv2.BitwiseAnd(stitchedEdges, sampleEdgeSupport, matchedRealityEdges);
+                Cv2.BitwiseAnd(sampleEdges, stitchedEdgeSupport, matchedSampleEdges);
+                Cv2.Absdiff(sampleGray, stitchedGray, absDiff);
+                var edgePrecision = Ratio(Cv2.CountNonZero(matchedRealityEdges), Cv2.CountNonZero(stitchedEdges));
+                var edgeRecall = Ratio(Cv2.CountNonZero(matchedSampleEdges), Cv2.CountNonZero(sampleEdges));
+                var f1 = edgePrecision + edgeRecall <= 0 ? 0 : 2.0 * edgePrecision * edgeRecall / (edgePrecision + edgeRecall);
+                var distance = DistanceStats(sampleEdges, stitchedEdges);
+                var diff = AbsoluteDifferenceStats(absDiff, overlap);
                 return new ComparisonMetrics
                 {
                     ValidOverlapRatio = Ratio(Cv2.CountNonZero(overlap), Cv2.CountNonZero(union)),
                     NormalizedCrossCorrelation = NormalizedCrossCorrelation(sampleGray, stitchedGray, overlap),
                     BinaryMaskIoU = Ratio(Cv2.CountNonZero(binaryIntersect), Cv2.CountNonZero(binaryUnion)),
                     EdgeOverlap = Ratio(Cv2.CountNonZero(edgeIntersect), Cv2.CountNonZero(edgeUnion)),
-                    DistanceTransformError = DistanceTransformError(sampleEdges, stitchedEdges)
+                    DistanceTransformError = distance.Mean,
+                    EdgePrecision = edgePrecision,
+                    EdgeRecall = edgeRecall,
+                    EdgeF1Score = f1,
+                    MeanEdgeDistancePixels = distance.Mean,
+                    P95EdgeDistancePixels = distance.P95,
+                    AbsoluteDifferenceMean = diff.Mean,
+                    AbsoluteDifferenceP95 = diff.P95,
+                    AbsoluteDifferenceMax = diff.Max
                 };
             }
         }
@@ -173,7 +194,7 @@ namespace GerberViewer.Stitching.Comparison
             return f;
         }
 
-        private static double DistanceTransformError(Mat referenceEdges, Mat stitchedEdges)
+        private static MetricDistribution DistanceStats(Mat referenceEdges, Mat stitchedEdges)
         {
             using (var inverted = new Mat())
             using (var distance = new Mat())
@@ -181,14 +202,59 @@ namespace GerberViewer.Stitching.Comparison
                 Cv2.BitwiseNot(referenceEdges, inverted);
                 Cv2.DistanceTransform(inverted, distance, DistanceTypes.L2, DistanceTransformMasks.Mask3);
                 var count = Cv2.CountNonZero(stitchedEdges);
-                if (count == 0) return 0;
+                if (count == 0) return new MetricDistribution();
                 using (var maskFloat = MaskToFloat(stitchedEdges))
                 using (var maskedDistance = new Mat())
                 {
                     Cv2.Multiply(distance, maskFloat, maskedDistance);
-                    return Cv2.Sum(maskedDistance).Val0 / count;
+                    return new MetricDistribution { Mean = Cv2.Sum(maskedDistance).Val0 / count, P95 = MaskedPercentile(distance, stitchedEdges, 0.95), Max = MaskedMax(distance, stitchedEdges) };
                 }
             }
+        }
+
+        private static MetricDistribution AbsoluteDifferenceStats(Mat absDiff, Mat overlapMask)
+        {
+            var count = Cv2.CountNonZero(overlapMask);
+            if (count == 0) return new MetricDistribution();
+            return new MetricDistribution { Mean = Cv2.Mean(absDiff, overlapMask).Val0, P95 = MaskedPercentile(absDiff, overlapMask, 0.95), Max = MaskedMax(absDiff, overlapMask) };
+        }
+
+        private static Mat DilateEdges(Mat edges)
+        {
+            var dilated = new Mat();
+            using (var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(5, 5))) Cv2.Dilate(edges, dilated, kernel);
+            return dilated;
+        }
+
+        private static double MaskedMax(Mat values, Mat mask)
+        {
+            double min, max;
+            OpenCvSharp.Point minLoc, maxLoc;
+            Cv2.MinMaxLoc(values, out min, out max, out minLoc, out maxLoc, mask);
+            return max;
+        }
+
+        private static double MaskedPercentile(Mat values, Mat mask, double percentile)
+        {
+            var count = Cv2.CountNonZero(mask);
+            if (count == 0) return 0;
+            var max = MaskedMax(values, mask);
+            var low = 0.0;
+            var high = Math.Max(1.0, max);
+            for (int i = 0; i < 16; i++)
+            {
+                var mid = (low + high) / 2.0;
+                using (var threshold = new Mat())
+                using (var above = new Mat())
+                {
+                    Cv2.Threshold(values, threshold, mid, 255, ThresholdTypes.Binary);
+                    threshold.ConvertTo(threshold, MatType.CV_8UC1);
+                    Cv2.BitwiseAnd(threshold, mask, above);
+                    var leCount = count - Cv2.CountNonZero(above);
+                    if (leCount >= count * percentile) high = mid; else low = mid;
+                }
+            }
+            return high;
         }
 
         private static Mat ToGray(Mat image)
@@ -315,7 +381,15 @@ namespace GerberViewer.Stitching.Comparison
             AppendJson(sb, "normalizedCrossCorrelation", m.NormalizedCrossCorrelation, true);
             AppendJson(sb, "binaryMaskIoU", m.BinaryMaskIoU, true);
             AppendJson(sb, "edgeOverlap", m.EdgeOverlap, true);
-            AppendJson(sb, "distanceTransformError", m.DistanceTransformError, false);
+            AppendJson(sb, "distanceTransformError", m.DistanceTransformError, true);
+            AppendJson(sb, "edgePrecision", m.EdgePrecision, true);
+            AppendJson(sb, "edgeRecall", m.EdgeRecall, true);
+            AppendJson(sb, "edgeF1Score", m.EdgeF1Score, true);
+            AppendJson(sb, "meanEdgeDistancePixels", m.MeanEdgeDistancePixels, true);
+            AppendJson(sb, "p95EdgeDistancePixels", m.P95EdgeDistancePixels, true);
+            AppendJson(sb, "absoluteDifferenceMean", m.AbsoluteDifferenceMean, true);
+            AppendJson(sb, "absoluteDifferenceP95", m.AbsoluteDifferenceP95, true);
+            AppendJson(sb, "absoluteDifferenceMax", m.AbsoluteDifferenceMax, false);
             sb.AppendLine("  }");
             sb.AppendLine("}");
             File.WriteAllText(result.MetadataPath, sb.ToString());
@@ -334,6 +408,13 @@ namespace GerberViewer.Stitching.Comparison
         }
 
         private static string Escape(string value) { return (value ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\""); }
+
+        private sealed class MetricDistribution
+        {
+            public double Mean { get; set; }
+            public double P95 { get; set; }
+            public double Max { get; set; }
+        }
 
         private sealed class ComparisonMapping
         {

@@ -2,11 +2,14 @@ namespace GerberViewer.Stitching.Comparison
 {
     public enum ComparisonMode
     {
+        SideBySide,
         SampleOnly,
-        StitchedOnly,
+        RealityOnly,
         AlphaOverlay,
+        Blink,
         AbsoluteDifference,
         EdgeOverlay,
-        Blink
+        BinaryMaskComparison,
+        ErrorHeatmap
     }
 }

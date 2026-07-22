@@ -17,6 +17,7 @@ namespace GerberStitching.Tests
             {
                 WorkflowContextTests.RunAll();
                 PathCanvasControlTests.RunAll();
+                SampleComparisonControlTests.RunAll();
                 GlobalTransformStitcherTests.RunAll();
                 SampleComparisonServiceTests.RunAll();
                 ImageInteropTests.RunAll();

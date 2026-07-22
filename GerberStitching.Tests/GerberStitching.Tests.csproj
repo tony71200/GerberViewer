@@ -75,6 +75,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="Workflow\WorkflowContextTests.cs" />
     <Compile Include="UI\PathCanvasControlTests.cs" />
+    <Compile Include="UI\SampleComparisonControlTests.cs" />
     <Compile Include="Stitching\GlobalTransformStitcherTests.cs" />
     <Compile Include="Comparison\SampleComparisonServiceTests.cs" />
     <Compile Include="Imaging\ImageInteropTests.cs" />

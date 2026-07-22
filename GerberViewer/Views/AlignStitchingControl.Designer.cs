@@ -11,7 +11,8 @@ namespace GerberViewer.Views
         private System.Windows.Forms.TabControl resultTabControl;
         private System.Windows.Forms.TabPage tabOrderView, tabDiagnostics, tabStitchedImage, tabComparison, tabLogs;
         private GerberViewer.Stitching.DesignControls.PathCanvasControl orderPathCanvas;
-        private System.Windows.Forms.PictureBox picStitchedImage, picComparison;
+        private System.Windows.Forms.PictureBox picStitchedImage;
+        private GerberViewer.Views.SampleComparisonControl sampleComparisonControl;
 
         private void InitializeComponent()
         {
@@ -34,7 +35,7 @@ namespace GerberViewer.Views
             this.resultWindow = new GerberViewer.Views.GerberSampleWindow();
             this.picStitchedImage = new System.Windows.Forms.PictureBox();
             this.tabComparison = new System.Windows.Forms.TabPage();
-            this.picComparison = new System.Windows.Forms.PictureBox();
+            this.sampleComparisonControl = new GerberViewer.Views.SampleComparisonControl();
             this.tabLogs = new System.Windows.Forms.TabPage();
             this.lstTab3Log = new System.Windows.Forms.ListBox();
             this.tableLayout_AlignControl = new System.Windows.Forms.TableLayoutPanel();
@@ -52,7 +53,6 @@ namespace GerberViewer.Views
             this.tabStitchedImage.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.picStitchedImage)).BeginInit();
             this.tabComparison.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.picComparison)).BeginInit();
             this.tabLogs.SuspendLayout();
             this.tableLayout_AlignControl.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.split_AlignContain)).BeginInit();
@@ -255,22 +255,20 @@ namespace GerberViewer.Views
             // 
             // tabComparison
             // 
-            this.tabComparison.Controls.Add(this.picComparison);
+            this.tabComparison.Controls.Add(this.sampleComparisonControl);
             this.tabComparison.Location = new System.Drawing.Point(8, 39);
             this.tabComparison.Name = "tabComparison";
             this.tabComparison.Size = new System.Drawing.Size(772, 454);
             this.tabComparison.TabIndex = 3;
             this.tabComparison.Text = "Sample Comparison";
             // 
-            // picComparison
+            // sampleComparisonControl
             // 
-            this.picComparison.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.picComparison.Location = new System.Drawing.Point(0, 0);
-            this.picComparison.Name = "picComparison";
-            this.picComparison.Size = new System.Drawing.Size(772, 454);
-            this.picComparison.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
-            this.picComparison.TabIndex = 0;
-            this.picComparison.TabStop = false;
+            this.sampleComparisonControl.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.sampleComparisonControl.Location = new System.Drawing.Point(0, 0);
+            this.sampleComparisonControl.Name = "sampleComparisonControl";
+            this.sampleComparisonControl.Size = new System.Drawing.Size(772, 454);
+            this.sampleComparisonControl.TabIndex = 0;
             // 
             // tabLogs
             // 
@@ -422,7 +420,6 @@ namespace GerberViewer.Views
             this.tabStitchedImage.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.picStitchedImage)).EndInit();
             this.tabComparison.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.picComparison)).EndInit();
             this.tabLogs.ResumeLayout(false);
             this.tableLayout_AlignControl.ResumeLayout(false);
             this.tableLayout_AlignControl.PerformLayout();
