@@ -2,7 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Threading;
+#if DEBUG
+using System.Drawing;
+using System.Windows.Forms;
+using OpenCvSharp.Extensions;
+#endif
 using GerberViewer.Stitching.Imaging.ImageInterop;
 using GerberViewer.Stitching.Transforms;
 using HalconDotNet;
@@ -32,10 +38,6 @@ namespace GerberViewer.Stitching.Matching
 
         public MatchResult Match(MatchRequest request, CancellationToken cancellationToken)
         {
-#if DEBUG
-            var gerberIng = request.ReferenceImage;
-            var testImg = request.MovingImage;
-#endif
             var sw = Stopwatch.StartNew();
             if (cancellationToken.IsCancellationRequested)
                 return WithTime(MatchResult.Failed(MatcherName, MatchFailureReason.Cancelled, "HALCON NCC was cancelled before start."), sw);
@@ -53,6 +55,9 @@ namespace GerberViewer.Stitching.Matching
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var key = BuildCacheKey(request, options);
+#if DEBUG
+                    ShowDebugInputDialog(request, options, key);
+#endif
                     var entry = GetOrCreateModel(key, request.ReferenceImage, options, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
                     HOperatorSet.FindNccModel(movingHObject, entry.ModelId, options.NccAngleStartRad, options.NccAngleExtentRad, options.NccMinScore, options.NccMaxMatches, options.NccMaxOverlap, options.NccSubPixel, options.NccNumLevels, out row, out column, out angle, out score);
@@ -180,6 +185,9 @@ namespace GerberViewer.Stitching.Matching
                 "PreprocessingVariant=" + preprocessingVariant,
                 "Rows=" + request.ReferenceImage.Rows.ToString(CultureInfo.InvariantCulture),
                 "Cols=" + request.ReferenceImage.Cols.ToString(CultureInfo.InvariantCulture),
+                "Type=" + request.ReferenceImage.Type().ToString(),
+                "Channels=" + request.ReferenceImage.Channels().ToString(CultureInfo.InvariantCulture),
+                "ContentHash=" + CalculateMatContentHash(request.ReferenceImage),
                 "AngleStart=" + options.NccAngleStartRad.ToString("R", CultureInfo.InvariantCulture),
                 "AngleExtent=" + options.NccAngleExtentRad.ToString("R", CultureInfo.InvariantCulture),
                 "AngleStep=" + options.NccAngleStepRad.ToString("R", CultureInfo.InvariantCulture),
@@ -187,6 +195,111 @@ namespace GerberViewer.Stitching.Matching
                 "NumLevels=" + options.NccNumLevels.ToString(CultureInfo.InvariantCulture)
             });
         }
+
+
+        private static string CalculateMatContentHash(Mat image)
+        {
+            if (image == null || image.Empty()) return "empty";
+
+            const ulong offsetBasis = 14695981039346656037UL;
+            const ulong prime = 1099511628211UL;
+            var hash = offsetBasis;
+            var rowLength = checked((int)(image.Cols * image.ElemSize()));
+            var buffer = new byte[rowLength];
+
+            for (var row = 0; row < image.Rows; row++)
+            {
+                Marshal.Copy(image.Ptr(row), buffer, 0, rowLength);
+                for (var i = 0; i < rowLength; i++)
+                {
+                    hash ^= buffer[i];
+                    hash *= prime;
+                }
+            }
+
+            return hash.ToString("X16", CultureInfo.InvariantCulture);
+        }
+#if DEBUG
+        private static void ShowDebugInputDialog(MatchRequest request, MatcherOptions options, string cacheKey)
+        {
+            if (Debugger.IsAttached == false) return;
+            using (var form = new Form())
+            using (var split = new SplitContainer())
+            using (var referenceBox = new PictureBox())
+            using (var movingBox = new PictureBox())
+            using (var infoBox = new TextBox())
+            using (var referenceBitmap = MatToDebugBitmap(request.ReferenceImage))
+            using (var movingBitmap = MatToDebugBitmap(request.MovingImage))
+            {
+                form.Text = "NCC_HalconMatcher DEBUG - Input Images";
+                form.Width = 1200;
+                form.Height = 800;
+                form.StartPosition = FormStartPosition.CenterScreen;
+
+                infoBox.Multiline = true;
+                infoBox.ReadOnly = true;
+                infoBox.ScrollBars = ScrollBars.Vertical;
+                infoBox.Dock = DockStyle.Top;
+                infoBox.Height = 150;
+                infoBox.Text = BuildDebugInfoText(request, options, cacheKey);
+
+                split.Dock = DockStyle.Fill;
+                split.Orientation = Orientation.Vertical;
+                split.Panel1.Controls.Add(referenceBox);
+                split.Panel2.Controls.Add(movingBox);
+
+                ConfigureDebugPictureBox(referenceBox, referenceBitmap, "ReferenceImage");
+                ConfigureDebugPictureBox(movingBox, movingBitmap, "MovingImage / movingHObject source");
+
+                form.Controls.Add(split);
+                form.Controls.Add(infoBox);
+                form.ShowDialog();
+            }
+        }
+
+        private static void ConfigureDebugPictureBox(PictureBox pictureBox, Bitmap bitmap, string label)
+        {
+            pictureBox.Dock = DockStyle.Fill;
+            pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+            pictureBox.BorderStyle = BorderStyle.FixedSingle;
+            pictureBox.Image = (Bitmap)bitmap.Clone();
+            pictureBox.Tag = label;
+        }
+
+        private static Bitmap MatToDebugBitmap(Mat image)
+        {
+            if (image == null || image.Empty()) return new Bitmap(1, 1);
+            using (var display = new Mat())
+            {
+                if (image.Channels() == 1)
+                    Cv2.CvtColor(image, display, ColorConversionCodes.GRAY2BGR);
+                else if (image.Channels() == 4)
+                    Cv2.CvtColor(image, display, ColorConversionCodes.BGRA2BGR);
+                else
+                    image.CopyTo(display);
+                return BitmapConverter.ToBitmap(display);
+            }
+        }
+
+        private static string BuildDebugInfoText(MatchRequest request, MatcherOptions options, string cacheKey)
+        {
+            return string.Join(Environment.NewLine, new[] {
+                "The movingHObject below is created from request.MovingImage with InteropPixelFormat.Mono8.",
+                "ReferenceImage: " + DescribeMat(request.ReferenceImage),
+                "MovingImage: " + DescribeMat(request.MovingImage),
+                "SampleTileId: " + (request.SampleTileId ?? "<null>"),
+                "OrderIndex: " + (request.OrderIndex.HasValue ? request.OrderIndex.Value.ToString(CultureInfo.InvariantCulture) : "<null>"),
+                "PreprocessingVariant: " + (options.PreprocessingVariant ?? "<null>"),
+                "CacheKey: " + cacheKey
+            });
+        }
+
+        private static string DescribeMat(Mat image)
+        {
+            if (image == null) return "<null>";
+            return string.Format(CultureInfo.InvariantCulture, "Rows={0}, Cols={1}, Type={2}, Channels={3}, ContentHash={4}", image.Rows, image.Cols, image.Type(), image.Channels(), CalculateMatContentHash(image));
+        }
+#endif
 
         private MatchResult ValidateNccGeometry(Transform2D movingToReference, Mat referenceImage, Mat movingImage, MatcherOptions options)
         {
