@@ -55,12 +55,13 @@ namespace GerberViewer.Stitching.Matching
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var key = BuildCacheKey(request, options);
-#if DEBUG
+#if false
                     ShowDebugInputDialog(request, options, key);
 #endif
                     var entry = GetOrCreateModel(key, request.ReferenceImage, options, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
-                    HOperatorSet.FindNccModel(movingHObject, entry.ModelId, options.NccAngleStartRad, options.NccAngleExtentRad, options.NccMinScore, options.NccMaxMatches, options.NccMaxOverlap, options.NccSubPixel, options.NccNumLevels, out row, out column, out angle, out score);
+                    HOperatorSet.FindNccModel(movingHObject, entry.ModelId, options.NccAngleStartRad, options.NccAngleExtentRad, options.NccMinScore, options.NccMaxMatches, options.NccMaxOverlap, options.NccSubPixel,
+                        options.NccNumLevels, out row, out column, out angle, out score);
                     cancellationToken.ThrowIfCancellationRequested();
                     if (score == null || score.Length <= 0)
                         return WithTime(MatchResult.Failed(MatcherName, MatchFailureReason.CorrelationBelowThreshold, "HALCON find_ncc_model returned no match above NccMinScore."), sw);

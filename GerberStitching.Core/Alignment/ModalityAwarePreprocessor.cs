@@ -48,12 +48,12 @@ namespace GerberViewer.Stitching.Alignment
             if (captured == null) throw new ArgumentNullException("captured");
             options = options ?? new PreprocessingOptions();
             var candidates = new List<PreprocessedAlignmentImages>();
-            if (options.Polarity == PolarityMode.Auto)
-            {
-                candidates.Add(CreateCandidate(sample, captured, options, PolarityMode.AsIs, "polarity:auto/as-is"));
-                candidates.Add(CreateCandidate(sample, captured, options, PolarityMode.InvertCaptured, "polarity:auto/invert-captured"));
-                return candidates;
-            }
+            //if (options.Polarity == PolarityMode.Auto)
+            //{
+            //    candidates.Add(CreateCandidate(sample, captured, options, PolarityMode.AsIs, "polarity:auto/as-is"));
+            //    candidates.Add(CreateCandidate(sample, captured, options, PolarityMode.InvertCaptured, "polarity:auto/invert-captured"));
+            //    return candidates;
+            //}
 
             candidates.Add(CreateCandidate(sample, captured, options, options.Polarity, "polarity:" + options.Polarity));
             return candidates;
@@ -71,9 +71,9 @@ namespace GerberViewer.Stitching.Alignment
                 ResizeIfRequested(ref capturedMat, options.NormalizedWidth, options.NormalizedHeight);
                 Normalize(sampleMat, options.ContrastNormalization);
                 Normalize(capturedMat, options.ContrastNormalization);
-                ApplyPolarity(sampleMat, capturedMat, polarity);
                 if (!SkipThresholdAndEdgePreparation)
                 {
+                    ApplyPolarity(sampleMat, capturedMat, polarity);
                     Threshold(sampleMat, options);
                     Threshold(capturedMat, options);
                     if (options.ApplyGerberContentMask) ApplyContentMask(sampleMat, capturedMat);
