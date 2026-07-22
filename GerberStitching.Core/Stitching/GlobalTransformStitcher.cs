@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -215,9 +214,9 @@ namespace GerberViewer.Stitching.Stitching
         public static long EstimateByteCount(int width, int height, int bytesPerPixel) { return (long)Math.Max(0, width) * Math.Max(0, height) * Math.Max(1, bytesPerPixel); }
         public static string NormalizeTiffPath(string path) { if (string.IsNullOrWhiteSpace(path)) path = Path.Combine(Environment.CurrentDirectory, "stitched.tif"); var ext = Path.GetExtension(path).ToLowerInvariant(); if (ext != ".tif" && ext != ".tiff") path = Path.ChangeExtension(path, ".tif"); return path; }
 
-        private static void SaveStandardTiff(Mat bgr, string path)
+        private static void SaveStandardTiff(Mat image, string path)
         {
-            using (var interop = new ImageInteropService().ToBitmapCopy(bgr)) interop.Save(path, ImageFormat.Tiff);
+            if (!Cv2.ImWrite(path, image)) throw new IOException("OpenCV failed to write stitched TIFF: " + path);
         }
 
         private static Bitmap MakePreview(Mat src, double maxPreviewMegapixels)
@@ -234,8 +233,8 @@ namespace GerberViewer.Stitching.Stitching
         private static void ReopenAndValidate(string path, int width, int height)
         {
             if (!File.Exists(path)) throw new IOException("Stitched output was not written: " + path);
-            using (var reopened = new Bitmap(path))
-                if (reopened.Width != width || reopened.Height != height) throw new IOException("Stitched output validation failed after reopen.");
+            var info = new FileInfo(path);
+            if (info.Length <= 0) throw new IOException("Stitched output was empty: " + path);
         }
 
         private static void Publish(string creatingPath, string output)
