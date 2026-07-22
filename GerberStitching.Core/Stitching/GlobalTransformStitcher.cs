@@ -6,12 +6,13 @@ using System.Linq;
 using System.Threading;
 using GerberViewer.Stitching.Imaging.ImageInterop;
 using GerberViewer.Stitching.Models;
+using HalconDotNet;
 using OpenCvSharp;
 
 namespace GerberViewer.Stitching.Stitching
 {
     public enum StitchBlendMode { NoBlend, WeightedAverage, Feather }
-    public sealed class StitchFromGlobalTransformsOptions { public int PreviewUpdateInterval { get; set; } = 4; public double MaxPreviewMegapixels { get; set; } = 32; public TiffMode TiffMode { get; set; } = TiffMode.Auto; public StitchBlendMode BlendMode { get; set; } = StitchBlendMode.WeightedAverage; public bool EnableBlending { get; set; } public bool ForceGray8Output { get; set; } public string OutputPath { get; set; } }
+    public sealed class StitchFromGlobalTransformsOptions { public StitchingEngine StitchingEngine { get; set; } = StitchingEngine.HalconThenOpenCvFallback; public int PreviewUpdateInterval { get; set; } = 4; public double MaxPreviewMegapixels { get; set; } = 32; public TiffMode TiffMode { get; set; } = TiffMode.Auto; public StitchBlendMode BlendMode { get; set; } = StitchBlendMode.WeightedAverage; public bool EnableBlending { get; set; } public bool ForceGray8Output { get; set; } public string OutputPath { get; set; } }
     public sealed class StitchPreview { public Bitmap Preview { get; set; } public int PlacedCount { get; set; } public int TotalCount { get; set; } }
 
     public sealed class GlobalTransformStitcher
@@ -38,11 +39,37 @@ namespace GerberViewer.Stitching.Stitching
                 if (options.TiffMode == TiffMode.StandardTiff && selection.EstimatedBytes > 0xF0000000L) throw new InvalidOperationException("Standard TIFF selected for an output estimated beyond the standard TIFF limit.");
                 if (selection.RequiresBigTiff) throw new NotSupportedException("BigTIFF output is required by size/configuration, but this writer does not claim BigTIFF support because it uses System.Drawing TIFF save.");
                 EnsureDirectory(creatingPath);
-                using (var canvas = StitchToMat(items, bounds, width, height, options, preview, cancellationToken))
+                if (options.StitchingEngine == StitchingEngine.HalconProjectiveMosaic)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    SaveStandardTiff(canvas, creatingPath);
+                    StitchToHalconMosaic(items, creatingPath, cancellationToken);
                     ReopenAndValidate(creatingPath, width, height);
+                }
+                else if (options.StitchingEngine == StitchingEngine.HalconThenOpenCvFallback)
+                {
+                    try
+                    {
+                        StitchToHalconMosaic(items, creatingPath, cancellationToken);
+                        ReopenAndValidate(creatingPath, width, height);
+                    }
+                    catch
+                    {
+                        CleanupCreating(creatingPath);
+                        using (var canvas = StitchToMat(items, bounds, width, height, options, preview, cancellationToken))
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            SaveStandardTiff(canvas, creatingPath);
+                            ReopenAndValidate(creatingPath, width, height);
+                        }
+                    }
+                }
+                else
+                {
+                    using (var canvas = StitchToMat(items, bounds, width, height, options, preview, cancellationToken))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        SaveStandardTiff(canvas, creatingPath);
+                        ReopenAndValidate(creatingPath, width, height);
+                    }
                 }
                 cancellationToken.ThrowIfCancellationRequested();
                 Publish(creatingPath, output);
@@ -58,6 +85,94 @@ namespace GerberViewer.Stitching.Stitching
                 CleanupCreating(creatingPath);
                 throw;
             }
+        }
+
+
+        private static void StitchToHalconMosaic(IList<StitchItem> items, string path, CancellationToken cancellationToken)
+        {
+            if (items == null || items.Count == 0) throw new ArgumentException("At least one stitch item is required.", "items");
+            HObject images = null;
+            HObject mosaic = null;
+            try
+            {
+                HOperatorSet.GenEmptyObj(out images);
+                foreach (var item in items)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    HObject image = null;
+                    HObject tmp = null;
+                    try
+                    {
+                        HOperatorSet.ReadImage(out image, item.Image.FilePath);
+                        HOperatorSet.ConcatObj(images, image, out tmp);
+                        images.Dispose();
+                        images = tmp;
+                        tmp = null;
+                    }
+                    finally
+                    {
+                        if (image != null && image.IsInitialized()) image.Dispose();
+                        if (tmp != null && tmp.IsInitialized()) tmp.Dispose();
+                    }
+                }
+
+                var rootInverse = InvertAffine(items[0].Pose.GlobalPose);
+                var mappingSource = new HTuple();
+                var mappingDest = new HTuple();
+                var homMatrices2D = new HTuple();
+                for (int i = 1; i < items.Count; i++)
+                {
+                    var sourceToRoot = MultiplyAffine(rootInverse, items[i].Pose.GlobalPose);
+                    mappingSource = mappingSource.TupleConcat(i + 1);
+                    mappingDest = mappingDest.TupleConcat(1);
+                    homMatrices2D = homMatrices2D.TupleConcat(new HTuple(ToHalconProjective(sourceToRoot)));
+                }
+
+                if (items.Count == 1) HOperatorSet.SelectObj(images, out mosaic, 1);
+                else
+                {
+                    HTuple transforms;
+                    HOperatorSet.GenProjectiveMosaic(images, out mosaic, new HTuple(1), mappingSource, mappingDest, homMatrices2D, new HTuple("default"), new HTuple("false"), out transforms);
+                }
+                WriteHalconImage(path, mosaic);
+            }
+            finally
+            {
+                if (mosaic != null && mosaic.IsInitialized()) mosaic.Dispose();
+                if (images != null && images.IsInitialized()) images.Dispose();
+            }
+        }
+
+        private static void WriteHalconImage(string path, HObject image)
+        {
+            EnsureDirectory(path);
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            var format = ext == ".tif" || ext == ".tiff" ? "tiff" : ext.TrimStart('.');
+            HOperatorSet.WriteImage(image, format, 0, path);
+        }
+
+        private static double[] ToHalconProjective(double[,] h)
+        {
+            return new[] { h[0, 0], h[0, 1], h[0, 2], h[1, 0], h[1, 1], h[1, 2], 0d, 0d, 1d };
+        }
+
+        private static double[,] InvertAffine(double[,] h)
+        {
+            var det = h[0, 0] * h[1, 1] - h[0, 1] * h[1, 0];
+            if (Math.Abs(det) < 1e-12) throw new InvalidOperationException("Cannot invert singular affine transform for HALCON mosaic stitching.");
+            var a = h[1, 1] / det; var b = -h[0, 1] / det; var d = -h[1, 0] / det; var e = h[0, 0] / det;
+            var c = -(a * h[0, 2] + b * h[1, 2]); var f = -(d * h[0, 2] + e * h[1, 2]);
+            return new[,] { { a, b, c }, { d, e, f }, { 0d, 0d, 1d } };
+        }
+
+        private static double[,] MultiplyAffine(double[,] a, double[,] b)
+        {
+            return new[,]
+            {
+                { a[0,0] * b[0,0] + a[0,1] * b[1,0], a[0,0] * b[0,1] + a[0,1] * b[1,1], a[0,0] * b[0,2] + a[0,1] * b[1,2] + a[0,2] },
+                { a[1,0] * b[0,0] + a[1,1] * b[1,0], a[1,0] * b[0,1] + a[1,1] * b[1,1], a[1,0] * b[0,2] + a[1,1] * b[1,2] + a[1,2] },
+                { 0d, 0d, 1d }
+            };
         }
 
         private Mat StitchToMat(IList<StitchItem> items, RectangleF bounds, int width, int height, StitchFromGlobalTransformsOptions options, IProgress<StitchPreview> preview, CancellationToken cancellationToken)

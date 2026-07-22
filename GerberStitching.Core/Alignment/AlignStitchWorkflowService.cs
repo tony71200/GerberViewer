@@ -42,7 +42,7 @@ namespace GerberViewer.Stitching.Alignment
         {
             ValidateInputs(manifest, captured);
             var report = ProcessingReport.Create(config, manifest);
-            report.Messages.Add("Stitching engine: OpenCV (GlobalTransformStitcher uses OpenCvSharp WarpAffine/CopyTo and TIFF write; HALCON is used by NCC_HalconMatcher for direct sample alignment, not for final stitching). ");
+            report.Messages.Add("Stitching engine: " + config.StitchingEngine + " (OpenCV path remains available; HALCON ProjectiveMosaic uses HOperatorSet.GenProjectiveMosaic when selected).");
             report.Messages.Add("Transform contract: NCC_HalconMatcher returns MovingImage-to-ReferenceImage transforms. Direct alignment warps each captured MovingImage into its reference tile coordinate system, then composes the tile ExpectedX/ExpectedY offset for global stitching.");
             var solved = new Dictionary<int, TileWorkflowState>();
             var tileByOrder = manifest.Tiles.ToDictionary(t => t.OrderIndex);
@@ -90,7 +90,7 @@ namespace GerberViewer.Stitching.Alignment
             else if (!string.IsNullOrWhiteSpace(config.OutputPath))
             {
                 var stitchedPath = Path.Combine(config.OutputPath, "stitched.tif");
-                report.FinalOutputPath = new GlobalTransformStitcher().StitchFromGlobalTransforms(ordered, solved.Values.OrderBy(v => v.OrderIndex).ToList(), new StitchFromGlobalTransformsOptions { OutputPath = stitchedPath, PreviewUpdateInterval = config.PreviewUpdateInterval, MaxPreviewMegapixels = config.MaxPreviewMegapixels, TiffMode = config.TiffMode, EnableBlending = false, ForceGray8Output = true, BlendMode = StitchBlendMode.NoBlend }, null, ct);
+                report.FinalOutputPath = new GlobalTransformStitcher().StitchFromGlobalTransforms(ordered, solved.Values.OrderBy(v => v.OrderIndex).ToList(), new StitchFromGlobalTransformsOptions { OutputPath = stitchedPath, PreviewUpdateInterval = config.PreviewUpdateInterval, MaxPreviewMegapixels = config.MaxPreviewMegapixels, TiffMode = config.TiffMode, EnableBlending = false, ForceGray8Output = true, BlendMode = StitchBlendMode.NoBlend, StitchingEngine = config.StitchingEngine }, null, ct);
             }
             return new AlignStitchWorkflowResult { Report = report, States = solved.Values.OrderBy(v => v.OrderIndex).ToList() };
         }

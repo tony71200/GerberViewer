@@ -254,7 +254,7 @@ namespace GerberViewer.Views
                 NccMinScore = source.NccMinScore, EccMinCorrelation = source.EccMinCorrelation, MaxTranslationPixels = source.MaxTranslationPixels, MaxAbsRotationDeg = source.MaxAbsRotationDeg,
                 MinScale = source.MinScale, MaxScale = source.MaxScale, MinOverlapRatio = source.MinOverlapRatio, AllowNccOnlyAcceptance = source.AllowNccOnlyAcceptance,
                 AllowEccFromExpectedWhenNccFails = source.AllowEccFromExpectedWhenNccFails, EnableNeighborRecovery = source.EnableNeighborRecovery, EnableAnchorInterpolation = source.EnableAnchorInterpolation,
-                AllowExpectedGridFallback = source.AllowExpectedGridFallback, RequireManualConfirmationForExpectedGrid = source.RequireManualConfirmationForExpectedGrid, PreviewUpdateInterval = source.PreviewUpdateInterval,
+                AllowExpectedGridFallback = source.AllowExpectedGridFallback, RequireManualConfirmationForExpectedGrid = source.RequireManualConfirmationForExpectedGrid, StitchingEngine = source.StitchingEngine, PreviewUpdateInterval = source.PreviewUpdateInterval,
                 MaxPreviewMegapixels = source.MaxPreviewMegapixels, TiffMode = source.TiffMode, BigTiffTileWidth = source.BigTiffTileWidth, BigTiffTileHeight = source.BigTiffTileHeight
             };
         }
@@ -434,8 +434,18 @@ namespace GerberViewer.Views
         private static void PublishRunDirectory(string finalRunDir, string creatingDir)
         {
             if (!Directory.Exists(creatingDir)) throw new DirectoryNotFoundException("Creating directory missing before publish: " + creatingDir);
-            foreach (var file in Directory.GetFiles(creatingDir)) File.Move(file, Path.Combine(finalRunDir, Path.GetFileName(file)));
-            foreach (var dir in Directory.GetDirectories(creatingDir)) Directory.Move(dir, Path.Combine(finalRunDir, Path.GetFileName(dir)));
+            foreach (var file in Directory.GetFiles(creatingDir))
+            {
+                var target = Path.Combine(finalRunDir, Path.GetFileName(file));
+                if (File.Exists(target)) File.Delete(target);
+                File.Move(file, target);
+            }
+            foreach (var dir in Directory.GetDirectories(creatingDir))
+            {
+                var target = Path.Combine(finalRunDir, Path.GetFileName(dir));
+                if (Directory.Exists(target)) Directory.Delete(target, true);
+                Directory.Move(dir, target);
+            }
             Directory.Delete(creatingDir, false);
         }
 
