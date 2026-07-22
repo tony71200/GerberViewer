@@ -113,7 +113,7 @@ namespace GerberViewer.Stitching.Alignment
         private static void Normalize(Mat image, ContrastNormalizationMode mode)
         {
             if (mode == ContrastNormalizationMode.None) return;
-            Cv2.Normalize(image, image, 0, 255, NormTypes.MinMax, MatType.CV_8UC1);
+            Cv2.Normalize(image, image, 0, 255, NormTypes.MinMax);
         }
 
         private static void ApplyPolarity(Mat sample, Mat captured, PolarityMode mode)

@@ -122,7 +122,7 @@ namespace GerberViewer.Stitching.Stitching
                 {
                     Cv2.Threshold(mask, binary, 0, 255, ThresholdTypes.Binary);
                     Cv2.DistanceTransform(binary, weight, DistanceTypes.L2, DistanceTransformMasks.Mask3);
-                    Cv2.Normalize(weight, weight, 0.0, 1.0, NormTypes.MinMax, MatType.CV_32FC1);
+                    Cv2.Normalize(weight, weight, 0.0, 1.0, NormTypes.MinMax);
                     mask.ConvertTo(binary, MatType.CV_32FC1, 1.0 / 255.0);
                     Cv2.Multiply(weight, binary, weight);
                 }
