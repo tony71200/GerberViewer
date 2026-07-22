@@ -89,7 +89,7 @@ namespace GerberViewer.Stitching.Alignment
             else if (!string.IsNullOrWhiteSpace(config.OutputPath))
             {
                 var stitchedPath = Path.Combine(config.OutputPath, "stitched.tif");
-                report.FinalOutputPath = new GlobalTransformStitcher().StitchFromGlobalTransforms(ordered, solved.Values.OrderBy(v => v.OrderIndex).ToList(), new StitchFromGlobalTransformsOptions { OutputPath = stitchedPath, PreviewUpdateInterval = config.PreviewUpdateInterval, MaxPreviewMegapixels = config.MaxPreviewMegapixels, TiffMode = config.TiffMode, EnableBlending = true, BlendMode = StitchBlendMode.WeightedAverage }, null, ct);
+                report.FinalOutputPath = new GlobalTransformStitcher().StitchFromGlobalTransforms(ordered, solved.Values.OrderBy(v => v.OrderIndex).ToList(), new StitchFromGlobalTransformsOptions { OutputPath = stitchedPath, PreviewUpdateInterval = config.PreviewUpdateInterval, MaxPreviewMegapixels = config.MaxPreviewMegapixels, TiffMode = config.TiffMode, EnableBlending = false, ForceGray8Output = true, BlendMode = StitchBlendMode.NoBlend }, null, ct);
             }
             return new AlignStitchWorkflowResult { Report = report, States = solved.Values.OrderBy(v => v.OrderIndex).ToList() };
         }

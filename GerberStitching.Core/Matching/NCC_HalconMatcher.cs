@@ -330,6 +330,10 @@ namespace GerberViewer.Stitching.Matching
             result.Diagnostics["FallbackHalconRow"] = referenceCenterY.ToString(CultureInfo.InvariantCulture);
             result.Diagnostics["FallbackHalconColumn"] = referenceCenterX.ToString(CultureInfo.InvariantCulture);
             result.Diagnostics["FallbackHalconAngleRad"] = "0";
+            result.Diagnostics["HalconRow"] = referenceCenterY.ToString(CultureInfo.InvariantCulture);
+            result.Diagnostics["HalconColumn"] = referenceCenterX.ToString(CultureInfo.InvariantCulture);
+            result.Diagnostics["HalconAngleRad"] = "0";
+            result.Diagnostics["HalconNccScore"] = string.Empty;
             result.Diagnostics["TransformDirection"] = "MovingImage -> ReferenceImage";
             return result;
         }

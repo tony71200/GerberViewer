@@ -12,7 +12,7 @@ using OpenCvSharp;
 namespace GerberViewer.Stitching.Stitching
 {
     public enum StitchBlendMode { NoBlend, WeightedAverage, Feather }
-    public sealed class StitchFromGlobalTransformsOptions { public int PreviewUpdateInterval { get; set; } = 4; public double MaxPreviewMegapixels { get; set; } = 32; public TiffMode TiffMode { get; set; } = TiffMode.Auto; public StitchBlendMode BlendMode { get; set; } = StitchBlendMode.WeightedAverage; public bool EnableBlending { get; set; } public string OutputPath { get; set; } }
+    public sealed class StitchFromGlobalTransformsOptions { public int PreviewUpdateInterval { get; set; } = 4; public double MaxPreviewMegapixels { get; set; } = 32; public TiffMode TiffMode { get; set; } = TiffMode.Auto; public StitchBlendMode BlendMode { get; set; } = StitchBlendMode.WeightedAverage; public bool EnableBlending { get; set; } public bool ForceGray8Output { get; set; } public string OutputPath { get; set; } }
     public sealed class StitchPreview { public Bitmap Preview { get; set; } public int PlacedCount { get; set; } public int TotalCount { get; set; } }
 
     public sealed class GlobalTransformStitcher
@@ -34,7 +34,8 @@ namespace GerberViewer.Stitching.Stitching
                 var bounds = CalculateBounds(items.Select(x => Tuple.Create(x.Image, x.Pose.GlobalPose)).ToList());
                 var width = Math.Max(1, (int)Math.Ceiling(bounds.Width));
                 var height = Math.Max(1, (int)Math.Ceiling(bounds.Height));
-                var selection = SelectTiffOutput(options.TiffMode, width, height, 3);
+                var bytesPerPixel = options.ForceGray8Output ? 1 : 3;
+                var selection = SelectTiffOutput(options.TiffMode, width, height, bytesPerPixel);
                 if (options.TiffMode == TiffMode.StandardTiff && selection.EstimatedBytes > 0xF0000000L) throw new InvalidOperationException("Standard TIFF selected for an output estimated beyond the standard TIFF limit.");
                 if (selection.RequiresBigTiff) throw new NotSupportedException("BigTIFF output is required by size/configuration, but this writer does not claim BigTIFF support because it uses System.Drawing TIFF save.");
                 EnsureDirectory(creatingPath);
@@ -62,8 +63,9 @@ namespace GerberViewer.Stitching.Stitching
 
         private Mat StitchToMat(IList<StitchItem> items, RectangleF bounds, int width, int height, StitchFromGlobalTransformsOptions options, IProgress<StitchPreview> preview, CancellationToken cancellationToken)
         {
-            var blendMode = options.EnableBlending ? options.BlendMode : StitchBlendMode.NoBlend;
-            Mat canvas8 = blendMode == StitchBlendMode.NoBlend ? new Mat(height, width, MatType.CV_8UC3, Scalar.All(0)) : null;
+            var blendMode = options.EnableBlending && !options.ForceGray8Output ? options.BlendMode : StitchBlendMode.NoBlend;
+            var canvasType = options.ForceGray8Output ? MatType.CV_8UC1 : MatType.CV_8UC3;
+            Mat canvas8 = blendMode == StitchBlendMode.NoBlend ? new Mat(height, width, canvasType, Scalar.All(0)) : null;
             Mat accum = blendMode == StitchBlendMode.NoBlend ? null : new Mat(height, width, MatType.CV_32FC3, Scalar.All(0));
             Mat weights = blendMode == StitchBlendMode.NoBlend ? null : new Mat(height, width, MatType.CV_32FC1, Scalar.All(0));
             try
@@ -71,7 +73,7 @@ namespace GerberViewer.Stitching.Stitching
                 for (int idx = 0; idx < items.Count; idx++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    using (var image = LoadBgr(items[idx].Image.FilePath))
+                    using (var image = LoadForStitch(items[idx].Image.FilePath, options.ForceGray8Output))
                     using (var mask = new Mat(image.Rows, image.Cols, MatType.CV_8UC1, Scalar.All(255)))
                     using (var warp = ToCanvasWarp(items[idx].Pose.GlobalPose, bounds))
                     using (var warped = new Mat())
@@ -154,9 +156,9 @@ namespace GerberViewer.Stitching.Stitching
             }
         }
 
-        private Mat LoadBgr(string path)
+        private Mat LoadForStitch(string path, bool forceGray8)
         {
-            using (var bitmap = new Bitmap(path)) return _imageInterop.ToMatCopy(bitmap, InteropPixelFormat.Bgr8);
+            using (var bitmap = new Bitmap(path)) return _imageInterop.ToMatCopy(bitmap, forceGray8 ? InteropPixelFormat.Mono8 : InteropPixelFormat.Bgr8);
         }
 
         private static Mat ToCanvasWarp(double[,] transform, RectangleF bounds)
