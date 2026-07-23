@@ -43,7 +43,8 @@ namespace GerberViewer.Stitching.Matching
                 return WithTime(MatchResult.Failed(MatcherName, MatchFailureReason.Cancelled, "HALCON NCC was cancelled before start."), sw);
             var invalid = _validator.ValidateRequest(request, MatcherName);
             if (invalid != null) return WithTime(invalid, sw);
-            var options = request.Options ?? new MatcherOptions();
+            //var options = request.Options ?? new MatcherOptions();
+            var options = new MatcherOptions();
             HTuple row = null;
             HTuple column = null;
             HTuple angle = null;

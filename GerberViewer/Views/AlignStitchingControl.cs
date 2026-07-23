@@ -431,7 +431,7 @@ namespace GerberViewer.Views
             if (!File.Exists(comparisonMetadata)) throw new IOException("Comparison metadata was not generated before publish.");
         }
 
-        private static void PublishRunDirectory(string finalRunDir, string creatingDir)
+        private static string PublishRunDirectory(string finalRunDir, string creatingDir)
         {
             if (!Directory.Exists(creatingDir)) throw new DirectoryNotFoundException("Creating directory missing before publish: " + creatingDir);
             foreach (var file in Directory.GetFiles(creatingDir))
@@ -442,11 +442,24 @@ namespace GerberViewer.Views
             }
             foreach (var dir in Directory.GetDirectories(creatingDir))
             {
-                var target = Path.Combine(finalRunDir, Path.GetFileName(dir));
-                if (Directory.Exists(target)) Directory.Delete(target, true);
-                Directory.Move(dir, target);
+                try
+                {
+                    var target = Path.Combine(finalRunDir, Path.GetFileName(dir));
+                    if (Directory.Exists(target))
+                    {
+                        Directory.Delete(dir, true);
+                        continue;
+                    }
+                    Directory.Move(dir, target);
+                }
+                catch (Exception ex)
+                {
+                    
+                }
             }
-            Directory.Delete(creatingDir, false);
+
+            Directory.Delete(creatingDir, true);
+            return finalRunDir;
         }
 
         private static void CleanupCreatingDirectory(string creatingDir)

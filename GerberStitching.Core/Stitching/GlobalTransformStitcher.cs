@@ -85,6 +85,10 @@ namespace GerberViewer.Stitching.Stitching
                 CleanupCreating(creatingPath);
                 throw;
             }
+            finally
+            {
+                Directory.Delete(creatingPath, true);
+            }
         }
 
 
