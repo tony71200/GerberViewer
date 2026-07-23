@@ -12,7 +12,17 @@ using OpenCvSharp;
 namespace GerberViewer.Stitching.Stitching
 {
     public enum StitchBlendMode { NoBlend, WeightedAverage, Feather }
-    public sealed class StitchFromGlobalTransformsOptions { public StitchingEngine StitchingEngine { get; set; } = StitchingEngine.HalconThenOpenCvFallback; public int PreviewUpdateInterval { get; set; } = 4; public double MaxPreviewMegapixels { get; set; } = 32; public TiffMode TiffMode { get; set; } = TiffMode.Auto; public StitchBlendMode BlendMode { get; set; } = StitchBlendMode.WeightedAverage; public bool EnableBlending { get; set; } public bool ForceGray8Output { get; set; } public string OutputPath { get; set; } }
+    public sealed class StitchFromGlobalTransformsOptions 
+    { 
+        public StitchingEngine StitchingEngine { get; set; } = StitchingEngine.HalconThenOpenCvFallback; 
+        public int PreviewUpdateInterval { get; set; } = 4; 
+        public double MaxPreviewMegapixels { get; set; } = 32; 
+        public TiffMode TiffMode { get; set; } = TiffMode.Auto; 
+        public StitchBlendMode BlendMode { get; set; } = StitchBlendMode.WeightedAverage; 
+        public bool EnableBlending { get; set; } 
+        public bool ForceGray8Output { get; set; } 
+        public string OutputPath { get; set; } 
+    }
     public sealed class StitchPreview { public Bitmap Preview { get; set; } public int PlacedCount { get; set; } public int TotalCount { get; set; } }
 
     public sealed class GlobalTransformStitcher
@@ -147,8 +157,9 @@ namespace GerberViewer.Stitching.Stitching
         {
             EnsureDirectory(path);
             var ext = Path.GetExtension(path).ToLowerInvariant();
-            var format = ext == ".tif" || ext == ".tiff" ? "tiff" : ext.TrimStart('.');
-            HOperatorSet.WriteImage(image, format, 0, path);
+            //var format = ext == ".tif" || ext == ".tiff" ? "tiff" : ext.TrimStart('.');
+            var format = "bigtiff none";
+            HOperatorSet.WriteImage(image, new HTuple(format), new HTuple(0), new HTuple(path));
         }
 
         public static double[] ToHalconProjective(double[,] h)

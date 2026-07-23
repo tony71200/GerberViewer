@@ -67,8 +67,8 @@ namespace GerberViewer.Stitching.Imaging
                 if (!validation.IsValid) throw new InvalidOperationException(string.Join(Environment.NewLine, validation.Errors));
                 processed = Preprocess(ownedSource, sourceSize, snapshot, cancellationToken);
                 var processedSize = GetSize(processed);
-                var layout = SampleGeometryCalculator.Calculate(processedSize.Width, processedSize.Height, snapshot);
-                return new PreparedSampleRun(ownedSource, processed, sourceSize.Width, sourceSize.Height, processedSize.Width, processedSize.Height, snapshot, layout, new ImagePreprocessMetadata { Mode = snapshot.PreprocessMode, KeepAspectRatio = snapshot.KeepAspectRatio, Inverted = snapshot.InvertImage });
+                var layout = SampleGeometryCalculator.Calculate(processedSize.Width-25, processedSize.Height-9, snapshot);
+                return new PreparedSampleRun(ownedSource, processed, sourceSize.Width-25, sourceSize.Height -9, processedSize.Width, processedSize.Height, snapshot, layout, new ImagePreprocessMetadata { Mode = snapshot.PreprocessMode, KeepAspectRatio = snapshot.KeepAspectRatio, Inverted = snapshot.InvertImage });
             }
             catch
             {
