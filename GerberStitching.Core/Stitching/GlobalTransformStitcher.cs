@@ -151,9 +151,24 @@ namespace GerberViewer.Stitching.Stitching
             HOperatorSet.WriteImage(image, format, 0, path);
         }
 
-        private static double[] ToHalconProjective(double[,] h)
+        public static double[] ToHalconProjective(double[,] h)
         {
-            return new[] { h[0, 0], h[0, 1], h[0, 2], h[1, 0], h[1, 1], h[1, 2], 0d, 0d, 1d };
+            if (h == null) throw new ArgumentNullException("h");
+            if (h.GetLength(0) != 3 || h.GetLength(1) != 3) throw new ArgumentException("Projective transform must be a 3x3 matrix.", "h");
+
+            // The canonical stitching transform uses OpenCV/image coordinates:
+            //   x/column' = h00*x + h01*y + h02
+            //   y/row'    = h10*x + h11*y + h12
+            // HALCON projective mosaic matrices are expressed in row/column order.
+            // Convert by sandwiching the canonical matrix with the row/column swap so
+            // HALCON receives row/column coefficients instead of accidentally treating
+            // x as row and y as column.
+            return new[]
+            {
+                h[1, 1], h[1, 0], h[1, 2],
+                h[0, 1], h[0, 0], h[0, 2],
+                h[2, 1], h[2, 0], h[2, 2]
+            };
         }
 
         private static double[,] InvertAffine(double[,] h)

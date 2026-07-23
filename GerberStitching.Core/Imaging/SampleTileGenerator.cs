@@ -53,7 +53,8 @@ namespace GerberViewer.Stitching.Imaging
                     VerifyImageReadable(path);
                     progress?.Report(new SampleCropProgress { Completed = tile.OrderIndex + 1, Total = total, OrderIndex = tile.OrderIndex, State = SampleTileState.Completed, Message = fileName });
                 }
-                WriteProcessedSample(Path.Combine(temp, "processed_sample.tiff"), run.ProcessedImage);
+                var processedSampleFileName = "processed_sample.tiff";
+                WriteProcessedSample(Path.Combine(temp, processedSampleFileName), run.ProcessedImage);
                 WriteConfig(Path.Combine(temp, "sample_config.json"), run.ConfigSnapshot);
                 var manifest = BuildManifest(run, final);
                 ValidateTileFilesInTemp(run, temp);
@@ -111,7 +112,7 @@ namespace GerberViewer.Stitching.Imaging
                 CropOrder = run.ConfigSnapshot.CropOrder.ToString(),
                 StartOrder = run.ConfigSnapshot.StartOrder.ToString(),
                 CreatedUtc = DateTime.UtcNow,
-                ProcessedSamplePath = Path.Combine(finalRoot, "processed_sample.png"),
+                ProcessedSamplePath = Path.Combine(finalRoot, "processed_sample.tiff"),
                 SourceToProcessedTransform = SourceToProcessedTransform(run),
                 PreprocessMode = run.PreprocessMetadata == null ? null : run.PreprocessMetadata.Mode.ToString(),
                 ProcessedChannelCount = CountChannels(run.ProcessedImage),
@@ -122,7 +123,6 @@ namespace GerberViewer.Stitching.Imaging
 
         private static void WriteProcessedSample(string path, HObject processedImage)
         {
-            // TODO: Insert into Threading to resolve system freezes with large image.
             HOperatorSet.WriteImage(processedImage, "tiff", 0, path);
             VerifyImageReadable(path);
         }

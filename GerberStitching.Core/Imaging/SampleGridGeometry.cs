@@ -38,8 +38,8 @@ namespace GerberViewer.Stitching.Imaging
             if (!validation.IsValid) throw new InvalidOperationException(string.Join(Environment.NewLine, validation.Errors));
             double ox = config.OverlapUnit == OverlapUnit.Percent ? processedWidth / (double)config.Columns * config.OverlapValue / 100.0 : config.OverlapValue;
             double oy = config.OverlapUnit == OverlapUnit.Percent ? processedHeight / (double)config.Rows * config.OverlapValue / 100.0 : config.OverlapValue;
-            var x = AxisSegments(processedWidth, config.Columns, ox); 
-            var y = AxisSegments(processedHeight - 6, config.Rows, oy); // TODO Phần này cần fix sau
+            var x = AxisSegments(processedWidth, config.Columns, ox);
+            var y = AxisSegments(processedHeight, config.Rows, oy);
             var coords = PhysicalOrder(config).ToList();
             var layout = new SampleGridLayout { Rows = config.Rows, Columns = config.Columns, TileWidth = x.TileSize, TileHeight = y.TileSize, StepX = x.Step, StepY = y.Step };
             for (int i = 0; i < coords.Count; i++)

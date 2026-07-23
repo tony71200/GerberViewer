@@ -23,6 +23,7 @@ namespace GerberStitching.Tests.Stitching
             FallbackNotStitchable();
             OutputReopen();
             CancellationCleanup();
+            HalconProjectiveConversionUsesRowColumnOrder();
         }
 
         private static void TranslationOnly()
@@ -108,6 +109,19 @@ namespace GerberStitching.Tests.Stitching
             }
         }
 
+        private static void HalconProjectiveConversionUsesRowColumnOrder()
+        {
+            var canonical = new[,]
+            {
+                { 1d, 0d, 13d },
+                { 0d, 1d, 29d },
+                { 0d, 0d, 1d }
+            };
+            var halcon = GlobalTransformStitcher.ToHalconProjective(canonical);
+            AssertNear(29d, halcon[2], 1e-12, "HALCON row translation must come from canonical Y/row translation.");
+            AssertNear(13d, halcon[5], 1e-12, "HALCON column translation must come from canonical X/column translation.");
+        }
+
         private static TileWorkflowState State(int order, double x, double y, int column, PoseSource source)
         {
             return TileWorkflowState.From(new CapturedImageInfo { OrderIndex = order, Row = 0, Column = column }, Homography.FromPose(x, y, 0, 1), source, null, null);
@@ -147,6 +161,7 @@ namespace GerberStitching.Tests.Stitching
 
         private static void AssertTrue(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
         private static void AssertFalse(bool value, string message) { if (value) throw new InvalidOperationException(message); }
+        private static void AssertNear(double expected, double actual, double tolerance, string message) { if (Math.Abs(expected - actual) > tolerance) throw new InvalidOperationException(message + " Expected " + expected + ", actual " + actual + "."); }
         private static void AssertThrows(Action action, string message) { try { action(); } catch { return; } throw new InvalidOperationException(message); }
     }
 }
