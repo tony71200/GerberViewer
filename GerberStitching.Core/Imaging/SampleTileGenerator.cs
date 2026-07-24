@@ -281,6 +281,11 @@ namespace GerberViewer.Stitching.Imaging
         { 
             switch (format) 
             { 
+                case SampleOutputFormat.BigTiff:
+                case SampleOutputFormat.Tiff:
+                    return ".tiff";
+                case SampleOutputFormat.Png:
+                    return ".png";
                 case SampleOutputFormat.Bmp: return ".bmp"; 
                 case SampleOutputFormat.Jpeg: return ".jpg"; 
                 default: return ".png"; 
