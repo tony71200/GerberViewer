@@ -1,4 +1,4 @@
-﻿// GerberViewer/MainForm.cs
+// GerberViewer/MainForm.cs
 // The entire logic of the form (Designer.cs only has the layout).
 
 // Online simulation functions (gerberviewer.com): drag and drop multiple files, list of classes
@@ -24,11 +24,12 @@ namespace GerberViewer
         private bool _suppressCheckEvent;                    // tranh render lai khi dang nap danh sach
         private bool _rendering;
 
-        private const int PreviewDpiCap = 9600;
+        private const int PreviewDpi = 300;
+        private const int LargePrimitiveWarningThreshold = 50000;
         public MainForm()
         {
             InitializeComponent();
-            tscDpi.SelectedIndex = 2;    // 600
+            tscDpi.SelectedIndex = 2;    // 600 Export DPI
             tscMode.SelectedIndex = 0;   // Realistic
             // Event co generic args - wire tay o day (Designer khong serialize duoc EventHandler<PointF?>)
             canvas.ImageCursorMoved += Canvas_ImageCursorMoved;
@@ -59,13 +60,16 @@ namespace GerberViewer
 
         private void LoadFiles(IEnumerable<string> paths)
         {
+            lblStatus.Text = "Parsing...";
             int warnings = 0;
+            int primitiveCount = 0;
             foreach (string path in paths)
             {
                 try
                 {
                     GerberLayer layer = _engine.LoadLayer(path);
                     warnings += layer.Warnings.Count;
+                    primitiveCount += layer.Primitives.Count;
                     AddLayerItem(layer);
                 }
                 catch (Exception ex)
@@ -75,8 +79,10 @@ namespace GerberViewer
                 }
             }
             lblStatus.Text = warnings > 0
-                ? "Da nap xong - " + warnings + " canh bao parse (xem tooltip lop)"
-                : "Da nap xong";
+                ? "Loaded - " + warnings + " parser warnings (see layer tooltip)"
+                : "Loaded";
+            if (primitiveCount >= LargePrimitiveWarningThreshold)
+                lblStatus.Text += " | large scene: " + primitiveCount.ToString("N0") + " primitives; preview uses capped DPI for responsiveness";
             RenderPreviewAsync(true);
         }
 
@@ -175,8 +181,7 @@ namespace GerberViewer
 
         private RenderOptions BuildOptions(bool forPreview)
         {
-            int dpi = int.Parse(tscDpi.SelectedItem.ToString());
-            if (forPreview && dpi > PreviewDpiCap) dpi = PreviewDpiCap;
+            int dpi = forPreview ? PreviewDpi : int.Parse(tscDpi.SelectedItem.ToString());
             return new RenderOptions
             {
                 Dpi = dpi,
@@ -199,7 +204,7 @@ namespace GerberViewer
             }
 
             _rendering = true;
-            lblStatus.Text = "Dang render...";
+            lblStatus.Text = "Generating preview...";
             RenderOptions opts = BuildOptions(true);
 
             // Render o worker thread; Bitmap ban giao quyen so huu cho canvas sau khi xong (Spec 5.1.4)
@@ -224,7 +229,7 @@ namespace GerberViewer
                     canvas.SetImage(task.Result.Item1, fit);
                     RectangleD b = _previewTransformer.ContentBoundsMm;
                     lblBoardSize.Text = string.Format("Board: {0:0.##} x {1:0.##} mm", b.Width, b.Height);
-                    lblStatus.Text = "San sang (preview " + task.Result.Item2.Dpi + " DPI)";
+                    lblStatus.Text = "Ready (preview transform, Export DPI independent)";
                     UpdateZoomLabel();
                 }));
             });
@@ -257,9 +262,9 @@ namespace GerberViewer
             List<GerberLayer> targets = new List<GerberLayer>();
             foreach (ListViewItem item in lvLayers.Items)
                 if (item.Checked) targets.Add((GerberLayer)item.Tag);
-            if (targets.Count == 0) { lblStatus.Text = "Khong co lop nao duoc chon"; return; }
+            if (targets.Count == 0) { lblStatus.Text = "No visible/checked layers selected"; return; }
 
-            using (var dlg = new FolderBrowserDialog { Description = "Chon thu muc xuat PNG tung lop" })
+            using (var dlg = new FolderBrowserDialog { Description = "Choose folder for per-layer PNG export" })
             {
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 RunExport(() =>
@@ -293,7 +298,7 @@ namespace GerberViewer
         private void RunExport(Func<string> work)
         {
             tsbExportSelected.Enabled = tsbExportCombined.Enabled = false;
-            lblStatus.Text = "Dang xuat PNG...";
+            lblStatus.Text = "Exporting PNG...";
             Task.Run(work).ContinueWith(task =>
             {
                 BeginInvoke((Action)(() =>
