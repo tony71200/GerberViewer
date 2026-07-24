@@ -69,11 +69,12 @@ namespace GerberViewer.Stitching.Alignment
                 capturedMat = _imageInterop.ToMatCopy(captured, InteropPixelFormat.Mono8);
                 ResizeIfRequested(ref sampleMat, options.NormalizedWidth, options.NormalizedHeight);
                 ResizeIfRequested(ref capturedMat, options.NormalizedWidth, options.NormalizedHeight);
-                Normalize(sampleMat, options.ContrastNormalization);
-                Normalize(capturedMat, options.ContrastNormalization);
-                Threshold(capturedMat, options);
+                
+                //Threshold(capturedMat, options);
                 if (!SkipThresholdAndEdgePreparation)
                 {
+                    Normalize(sampleMat, options.ContrastNormalization);
+                    Normalize(capturedMat, options.ContrastNormalization);
                     ApplyPolarity(sampleMat, capturedMat, polarity);
                     Threshold(sampleMat, options);
                     Threshold(capturedMat, options);
