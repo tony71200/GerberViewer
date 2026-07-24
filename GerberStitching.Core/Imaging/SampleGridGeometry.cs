@@ -31,11 +31,14 @@ namespace GerberViewer.Stitching.Imaging
     }
     public static class SampleGeometryCalculator
     {
+        // TODO: 
         public static SampleGridLayout Calculate(int processedWidth, int processedHeight, GerberSampleConfig config)
         {
-            if (config == null) throw new ArgumentNullException(nameof(config));
+            if (config == null) 
+                throw new ArgumentNullException(nameof(config));
             var validation = GerberSampleConfigValidator.Validate(config, new Size(processedWidth, processedHeight));
-            if (!validation.IsValid) throw new InvalidOperationException(string.Join(Environment.NewLine, validation.Errors));
+            if (!validation.IsValid) 
+                throw new InvalidOperationException(string.Join(Environment.NewLine, validation.Errors));
             double ox = config.OverlapUnit == OverlapUnit.Percent ? processedWidth / (double)config.Columns * config.OverlapValue / 100.0 : config.OverlapValue;
             double oy = config.OverlapUnit == OverlapUnit.Percent ? processedHeight / (double)config.Rows * config.OverlapValue / 100.0 : config.OverlapValue;
             var x = AxisSegments(processedWidth, config.Columns, ox);

@@ -10,7 +10,11 @@ namespace GerberViewer.Stitching.Alignment
 
         public HalconNccSampleAligner()
         {
-            _inner = new NccThenPyramidEccSampleAligner(new MatcherPipeline(new NccOnlyFactory()));
+            _inner = new NccThenPyramidEccSampleAligner(
+                new MatcherPipeline(
+                    new NccOnlyFactory()
+                    )
+                );
         }
 
         public SampleAlignmentResult Align(SampleAlignmentContext context)
@@ -56,7 +60,9 @@ namespace GerberViewer.Stitching.Alignment
 
         public PyramidEccSampleAligner()
         {
-            _inner = new NccThenPyramidEccSampleAligner(new MatcherPipeline(new EccOnlyFactory()));
+            _inner = new NccThenPyramidEccSampleAligner(
+                new MatcherPipeline(
+                    new EccOnlyFactory()));
         }
 
         public SampleAlignmentResult Align(SampleAlignmentContext context)
@@ -120,8 +126,16 @@ namespace GerberViewer.Stitching.Alignment
                     };
                     var pipelineResult = _pipeline.MatchDirect(request, options.AllowNccOnlyAcceptance, options.AllowEccFromExpectedWhenNccFails, System.Threading.CancellationToken.None);
                     var alignment = ToAlignmentResult(pipelineResult, candidate.Variant, context);
-                    if (candidate.SampleDiagnostic != null) { alignment.DiagnosticImages["sample_preprocessed"] = candidate.SampleDiagnostic; candidate.SampleDiagnostic = null; }
-                    if (candidate.CapturedDiagnostic != null) { alignment.DiagnosticImages["captured_preprocessed"] = candidate.CapturedDiagnostic; candidate.CapturedDiagnostic = null; }
+                    if (candidate.SampleDiagnostic != null) 
+                    { 
+                        alignment.DiagnosticImages["sample_preprocessed"] = candidate.SampleDiagnostic; 
+                        candidate.SampleDiagnostic = null; 
+                    }
+                    if (candidate.CapturedDiagnostic != null) 
+                    { 
+                        alignment.DiagnosticImages["captured_preprocessed"] = candidate.CapturedDiagnostic; 
+                        candidate.CapturedDiagnostic = null; 
+                    }
                     if (alignment.Success) return alignment;
                     bestRejected = PreferMoreInformative(bestRejected, alignment);
                 }
@@ -153,8 +167,10 @@ namespace GerberViewer.Stitching.Alignment
             FillScores(result, pipelineResult);
             result.Warning = pipelineResult.UsedNccOnlyFallback ? "NccOnlyAcceptedAfterEccFailure" : (pipelineResult.UsedExpectedEccInitialization ? "EccAcceptedFromExpectedAfterNccFailure" : null);
             result.PipelineStage = pipelineResult.SelectedStage;
-            if (pipelineResult.NccResult != null && !pipelineResult.NccResult.Success) result.NccFailureReason = pipelineResult.NccResult.FailureReason + ": " + pipelineResult.NccResult.FailureMessage;
-            if (pipelineResult.EccResult != null && !pipelineResult.EccResult.Success) result.EccFailureReason = pipelineResult.EccResult.FailureReason + ": " + pipelineResult.EccResult.FailureMessage;
+            if (pipelineResult.NccResult != null && !pipelineResult.NccResult.Success) 
+                result.NccFailureReason = pipelineResult.NccResult.FailureReason + ": " + pipelineResult.NccResult.FailureMessage;
+            if (pipelineResult.EccResult != null && !pipelineResult.EccResult.Success) 
+                result.EccFailureReason = pipelineResult.EccResult.FailureReason + ": " + pipelineResult.EccResult.FailureMessage;
             return result;
         }
 
@@ -164,7 +180,11 @@ namespace GerberViewer.Stitching.Alignment
             result.EccCorrelation = pipelineResult != null && pipelineResult.EccResult != null ? pipelineResult.EccResult.RawScore : double.NaN;
         }
 
-        private static SampleAlignmentResult BuildResult(SampleAlignmentMethod method, double[,] h, string variant, SampleAlignmentContext ctx)
+        private static SampleAlignmentResult BuildResult(
+            SampleAlignmentMethod method, 
+            double[,] h, 
+            string variant, 
+            SampleAlignmentContext ctx)
         {
             var r = new SampleAlignmentResult { Method = method, Success = true, CapturedToSampleTransform = h, PreprocessingVariant = variant, TranslationX = h[0, 2], TranslationY = h[1, 2], RotationDeg = Math.Atan2(h[1, 0], h[0, 0]) * 180 / Math.PI, Scale = Math.Sqrt(h[0, 0] * h[0, 0] + h[1, 0] * h[1, 0]) };
             r.OverlapRatio = EstimateOverlap(ctx, h);

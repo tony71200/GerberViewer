@@ -88,19 +88,27 @@ namespace GerberViewer.Stitching.Imaging.ImageInterop
             if (source == null) throw new ArgumentNullException("source");
             var channels = source.Channels();
             var depth = source.Depth();
-            if (channels == 1 && depth == MatType.CV_8U) return new ImagePixelFormatInfo(InteropPixelFormat.Mono8, 1, 8, "Gray");
-            if (channels == 1 && depth == MatType.CV_16U) return new ImagePixelFormatInfo(InteropPixelFormat.Mono16, 1, 16, "Gray");
-            if (channels == 3 && depth == MatType.CV_8U) return new ImagePixelFormatInfo(InteropPixelFormat.Bgr8, 3, 8, "BGR");
+            if (channels == 1 && depth == MatType.CV_8U) 
+                return new ImagePixelFormatInfo(InteropPixelFormat.Mono8, 1, 8, "Gray");
+            if (channels == 1 && depth == MatType.CV_16U) 
+                return new ImagePixelFormatInfo(InteropPixelFormat.Mono16, 1, 16, "Gray");
+            if (channels == 3 && depth == MatType.CV_8U) 
+                return new ImagePixelFormatInfo(InteropPixelFormat.Bgr8, 3, 8, "BGR");
             throw new NotSupportedException("Unsupported Mat type: " + source.Type());
         }
 
         public ImagePixelFormatInfo Describe(Bitmap source)
         {
             if (source == null) throw new ArgumentNullException("source");
-            if (source.PixelFormat == PixelFormat.Format8bppIndexed) return new ImagePixelFormatInfo(InteropPixelFormat.Mono8, 1, 8, "Gray");
-            if (source.PixelFormat == PixelFormat.Format16bppGrayScale) return new ImagePixelFormatInfo(InteropPixelFormat.Mono16, 1, 16, "Gray");
-            if (source.PixelFormat == PixelFormat.Format24bppRgb) return new ImagePixelFormatInfo(InteropPixelFormat.Bgr8, 3, 8, "BGR memory / RGB logical Bitmap");
-            if (source.PixelFormat == PixelFormat.Format32bppArgb || source.PixelFormat == PixelFormat.Format32bppRgb) return new ImagePixelFormatInfo(InteropPixelFormat.Bgr8, 3, 8, "BGR after alpha drop");
+            if (source.PixelFormat == PixelFormat.Format8bppIndexed) 
+                return new ImagePixelFormatInfo(InteropPixelFormat.Mono8, 1, 8, "Gray");
+            if (source.PixelFormat == PixelFormat.Format16bppGrayScale) 
+                return new ImagePixelFormatInfo(InteropPixelFormat.Mono16, 1, 16, "Gray");
+            if (source.PixelFormat == PixelFormat.Format24bppRgb) 
+                return new ImagePixelFormatInfo(InteropPixelFormat.Bgr8, 3, 8, "BGR memory / RGB logical Bitmap");
+            if (source.PixelFormat == PixelFormat.Format32bppArgb || 
+                source.PixelFormat == PixelFormat.Format32bppRgb) 
+                return new ImagePixelFormatInfo(InteropPixelFormat.Bgr8, 3, 8, "BGR after alpha drop");
             throw new NotSupportedException("Unsupported Bitmap pixel format: " + source.PixelFormat);
         }
 
@@ -119,15 +127,21 @@ namespace GerberViewer.Stitching.Imaging.ImageInterop
                 {
                     HOperatorSet.GetImagePointer1(source, out pointer, out type, out width, out height);
                     var t = type.S;
-                    if (string.Equals(t, "byte", StringComparison.OrdinalIgnoreCase)) return new ImagePixelFormatInfo(InteropPixelFormat.Mono8, 1, 8, "Gray");
-                    if (string.Equals(t, "uint2", StringComparison.OrdinalIgnoreCase)) return new ImagePixelFormatInfo(InteropPixelFormat.Mono16, 1, 16, "Gray");
+                    if (string.Equals(t, "byte", StringComparison.OrdinalIgnoreCase)) 
+                        return new ImagePixelFormatInfo(InteropPixelFormat.Mono8, 1, 8, "Gray");
+                    if (string.Equals(t, "uint2", StringComparison.OrdinalIgnoreCase)) 
+                        return new ImagePixelFormatInfo(InteropPixelFormat.Mono16, 1, 16, "Gray");
                 }
                 if (channels.I == 3) return new ImagePixelFormatInfo(InteropPixelFormat.Rgb8, 3, 8, "RGB HALCON planes");
                 throw new NotSupportedException("Unsupported HObject channel count: " + channels.I);
             }
             finally
             {
-                DisposeTuple(channels); DisposeTuple(pointer); DisposeTuple(type); DisposeTuple(width); DisposeTuple(height);
+                DisposeTuple(channels); 
+                DisposeTuple(pointer); 
+                DisposeTuple(type); 
+                DisposeTuple(width); 
+                DisposeTuple(height);
             }
         }
 
@@ -135,16 +149,20 @@ namespace GerberViewer.Stitching.Imaging.ImageInterop
         {
             if (targetFormat == InteropPixelFormat.Mono8)
             {
-                if (source.Type() == MatType.CV_8UC1) return source.Clone();
+                if (source.Type() == MatType.CV_8UC1) 
+                    return source.Clone();
                 var gray = new Mat();
-                if (source.Channels() == 3) Cv2.CvtColor(source, gray, ColorConversionCodes.BGR2GRAY);
-                else if (source.Type() == MatType.CV_16UC1) source.ConvertTo(gray, MatType.CV_8UC1, 1.0 / 257.0);
+                if (source.Channels() == 3) 
+                    Cv2.CvtColor(source, gray, ColorConversionCodes.BGR2GRAY);
+                else if (source.Type() == MatType.CV_16UC1) 
+                    source.ConvertTo(gray, MatType.CV_8UC1, 1.0 / 257.0);
                 else throw new NotSupportedException("Cannot convert Mat to Mono8: " + source.Type());
                 return gray;
             }
             if (targetFormat == InteropPixelFormat.Mono16)
             {
-                if (source.Type() == MatType.CV_16UC1) return source.Clone();
+                if (source.Type() == MatType.CV_16UC1) 
+                    return source.Clone();
                 using (var gray8 = ConvertMatCopy(source, InteropPixelFormat.Mono8))
                 {
                     var gray16 = new Mat();
@@ -154,7 +172,8 @@ namespace GerberViewer.Stitching.Imaging.ImageInterop
             }
             if (targetFormat == InteropPixelFormat.Bgr8)
             {
-                if (source.Type() == MatType.CV_8UC3) return source.Clone();
+                if (source.Type() == MatType.CV_8UC3) 
+                    return source.Clone();
                 if (source.Type() == MatType.CV_8UC1)
                 {
                     var bgr = new Mat();
@@ -238,7 +257,16 @@ namespace GerberViewer.Stitching.Imaging.ImageInterop
                 try
                 {
                     HObject image;
-                    HOperatorSet.GenImageInterleaved(out image, handle.AddrOfPinnedObject(), colorFormat, contiguous.Cols, contiguous.Rows, 0, "byte", contiguous.Cols, contiguous.Rows, 0, 0, -1, 0);
+                    HOperatorSet.GenImageInterleaved(
+                        out image, 
+                        handle.AddrOfPinnedObject(), 
+                        colorFormat, 
+                        contiguous.Cols, 
+                        contiguous.Rows, 
+                        0, 
+                        "byte", 
+                        contiguous.Cols, 
+                        contiguous.Rows, 0, 0, -1, 0);
                     return image;
                 }
                 finally
@@ -265,7 +293,10 @@ namespace GerberViewer.Stitching.Imaging.ImageInterop
             }
             finally
             {
-                DisposeTuple(pointer); DisposeTuple(type); DisposeTuple(width); DisposeTuple(height);
+                DisposeTuple(pointer); 
+                DisposeTuple(type); 
+                DisposeTuple(width); 
+                DisposeTuple(height);
             }
         }
 
@@ -279,9 +310,19 @@ namespace GerberViewer.Stitching.Imaging.ImageInterop
             HTuple height = null;
             try
             {
-                HOperatorSet.GetImagePointer3(source, out red, out green, out blue, out type, out width, out height);
+                HOperatorSet.GetImagePointer3(
+                    source, 
+                    out red, 
+                    out green, 
+                    out blue, 
+                    out type, 
+                    out width, 
+                    out height
+                    );
                 var count = width.I * height.I;
-                var r = new byte[count]; var g = new byte[count]; var b = new byte[count];
+                var r = new byte[count]; 
+                var g = new byte[count]; 
+                var b = new byte[count];
                 Marshal.Copy(red.IP, r, 0, count); Marshal.Copy(green.IP, g, 0, count); Marshal.Copy(blue.IP, b, 0, count);
                 var interleaved = new byte[count * 3];
                 for (int i = 0; i < count; i++)
@@ -289,11 +330,15 @@ namespace GerberViewer.Stitching.Imaging.ImageInterop
                     var o = i * 3;
                     if (halconRgbToBgr)
                     {
-                        interleaved[o] = b[i]; interleaved[o + 1] = g[i]; interleaved[o + 2] = r[i];
+                        interleaved[o] = b[i]; 
+                        interleaved[o + 1] = g[i]; 
+                        interleaved[o + 2] = r[i];
                     }
                     else
                     {
-                        interleaved[o] = r[i]; interleaved[o + 1] = g[i]; interleaved[o + 2] = b[i];
+                        interleaved[o] = r[i]; 
+                        interleaved[o + 1] = g[i]; 
+                        interleaved[o + 2] = b[i];
                     }
                 }
                 var mat = new Mat(height.I, width.I, MatType.CV_8UC3);
@@ -302,7 +347,12 @@ namespace GerberViewer.Stitching.Imaging.ImageInterop
             }
             finally
             {
-                DisposeTuple(red); DisposeTuple(green); DisposeTuple(blue); DisposeTuple(type); DisposeTuple(width); DisposeTuple(height);
+                DisposeTuple(red); 
+                DisposeTuple(green); 
+                DisposeTuple(blue); 
+                DisposeTuple(type); 
+                DisposeTuple(width); 
+                DisposeTuple(height);
             }
         }
 
