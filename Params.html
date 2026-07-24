@@ -238,15 +238,16 @@
   <li><code>overlapX</code> and <code>overlapY</code>: overlap measured between tiles; percent overlap is calculated from <code>TileWidth</code>/<code>TileHeight</code>, not from the full processed image.</li>
   <li><code>SampleGridLayout.StepX</code> and <code>StepY</code>: distance between tile starts, calculated as <code>TileWidth - overlapX</code> and <code>TileHeight - overlapY</code>; for 4096 tile and 60 px overlap the step is 4036.</li>
   <li><code>SampleGridLayout.Warnings</code>: non-blocking warnings such as unused processed width/height or tile grid overflow; rectangles are clamped to processed image bounds before preview/crop/manifest output.</li>
-  <li><code>AddRectangleOutline</code>: creates HALCON XLD rectangle contours so the overlay is outline-only/margin-style.</li>
+  <li><code>AddRectangleOutline</code>: creates HALCON rectangle-region outlines so the overlay is outline-only/margin-style.</li>
+  <li><code>AddFilledRect</code>: creates the HALCON rectangle regions used by tile borders and label/background helper shapes.</li>
   <li><code>AddLabelTextRegions</code>: creates normal bold-font <code>OrderIndex</code> label regions with a dark inverse/contrast border and light fill instead of seven-segment digital digits.</li>
   <li><code>DrawTextMask</code> and <code>AddMaskRegion</code>: render small owned GDI+ text masks and convert active runs into HALCON regions, avoiding full-size image bitmap conversion.</li>
 </ul>
 <h2>Tab 2 zoom-aware overlay variables</h2>
 <ul>
   <li><code>CurrentZoom</code>: inherited viewer zoom value used by <code>RenderImageOverlay</code> to scale overlay geometry.</li>
-  <li><code>lineWidth</code>: image-coordinate rectangle and label-outline thickness calculated as <code>max(1, round(2 / CurrentZoom))</code>.</li>
-  <li><code>labelSize</code>: image-coordinate normal-font order-number size calculated as <code>max(4, round(14 / CurrentZoom))</code>.</li>
+  <li><code>lineWidth</code>: image-coordinate rectangle and label-outline thickness calculated from <code>CurrentZoom</code> but capped to avoid generating oversized overlay regions at low zoom.</li>
+  <li><code>labelSize</code>: image-coordinate normal-font order-number size calculated from <code>CurrentZoom</code> but capped before GDI+ mask creation to prevent preview hangs.</li>
 </ul>
 
 <h2>Tab 3 align/stitch workflow variables</h2>

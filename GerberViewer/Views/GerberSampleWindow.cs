@@ -39,8 +39,8 @@ namespace GerberViewer.Views
         {
             ClearOverlayRegions();
             var zoom = Math.Max(0.01d, CurrentZoom);
-            var lineWidth = Math.Max(1, (int)Math.Round(2d / zoom));
-            var labelSize = Math.Max(4, (int)Math.Round(14d / zoom));
+            var lineWidth = Math.Max(1, Math.Min(8, (int)Math.Round(2d / zoom)));
+            var labelSize = Math.Max(8, Math.Min(64, (int)Math.Round(14d / zoom)));
             if (overlays != null)
             {
                 foreach (var overlay in overlays)
@@ -141,6 +141,16 @@ namespace GerberViewer.Views
             if (rows.Count == 0) return;
             HObject region = null;
             HOperatorSet.GenRegionRuns(out region, new HTuple(rows.ToArray()), new HTuple(starts.ToArray()), new HTuple(ends.ToArray()));
+            _overlayRegions.Add(region);
+            _overlayColors.Add(color);
+        }
+
+
+        private void AddFilledRect(int top, int left, int bottom, int right, int[] color)
+        {
+            if (bottom <= top || right <= left) return;
+            HObject region = null;
+            HOperatorSet.GenRectangle1(out region, top, left, Math.Max(top, bottom - 1), Math.Max(left, right - 1));
             _overlayRegions.Add(region);
             _overlayColors.Add(color);
         }
