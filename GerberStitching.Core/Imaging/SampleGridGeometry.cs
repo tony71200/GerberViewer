@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -28,10 +28,10 @@ namespace GerberViewer.Stitching.Imaging
         public int Rows { get; set; }
         public int Columns { get; set; }
         public int ExpectedTileCount { get { return Rows * Columns; } }
+        public IList<string> Warnings { get; set; } = new List<string>();
     }
     public static class SampleGeometryCalculator
     {
-        // TODO: 
         public static SampleGridLayout Calculate(int processedWidth, int processedHeight, GerberSampleConfig config)
         {
             if (config == null) 
@@ -39,18 +39,58 @@ namespace GerberViewer.Stitching.Imaging
             var validation = GerberSampleConfigValidator.Validate(config, new Size(processedWidth, processedHeight));
             if (!validation.IsValid) 
                 throw new InvalidOperationException(string.Join(Environment.NewLine, validation.Errors));
-            double ox = config.OverlapUnit == OverlapUnit.Percent ? processedWidth / (double)config.Columns * config.OverlapValue / 100.0 : config.OverlapValue;
-            double oy = config.OverlapUnit == OverlapUnit.Percent ? processedHeight / (double)config.Rows * config.OverlapValue / 100.0 : config.OverlapValue;
-            var x = AxisSegments(processedWidth, config.Columns, ox);
-            var y = AxisSegments(processedHeight, config.Rows, oy);
+
+            var fallbackTileWidth = CalculateFallbackTileSize(processedWidth, config.Columns, config.OverlapValue, config.OverlapUnit);
+            var fallbackTileHeight = CalculateFallbackTileSize(processedHeight, config.Rows, config.OverlapValue, config.OverlapUnit);
+            var tileWidth = config.ProcessedWidth > 0 ? config.ProcessedWidth : fallbackTileWidth;
+            var tileHeight = config.ProcessedHeight > 0 ? config.ProcessedHeight : fallbackTileHeight;
+            var overlapX = CalculateOverlap(tileWidth, config.OverlapValue, config.OverlapUnit);
+            var overlapY = CalculateOverlap(tileHeight, config.OverlapValue, config.OverlapUnit);
+            var stepX = Math.Max(1, tileWidth - overlapX);
+            var stepY = Math.Max(1, tileHeight - overlapY);
+            var requiredWidth = tileWidth + Math.Max(0, config.Columns - 1) * stepX;
+            var requiredHeight = tileHeight + Math.Max(0, config.Rows - 1) * stepY;
+
             var coords = PhysicalOrder(config).ToList();
-            var layout = new SampleGridLayout { Rows = config.Rows, Columns = config.Columns, TileWidth = x.TileSize, TileHeight = y.TileSize, StepX = x.Step, StepY = y.Step };
+            var layout = new SampleGridLayout { Rows = config.Rows, Columns = config.Columns, TileWidth = tileWidth, TileHeight = tileHeight, StepX = stepX, StepY = stepY };
+            AddCoverageWarning(layout.Warnings, "width", processedWidth, requiredWidth);
+            AddCoverageWarning(layout.Warnings, "height", processedHeight, requiredHeight);
+
             for (int i = 0; i < coords.Count; i++)
             {
                 var p = coords[i];
-                layout.Tiles.Add(new SampleTileLayout { Row = p.Item1, Column = p.Item2, OrderIndex = i, Rectangle = Rectangle.FromLTRB(x.Starts[p.Item2], y.Starts[p.Item1], x.Ends[p.Item2], y.Ends[p.Item1]), Predecessor = i == 0 ? (int?)null : i - 1, Successor = i + 1 == coords.Count ? (int?)null : i + 1, Status = SampleTileState.Pending });
+                var startX = p.Item2 * stepX;
+                var startY = p.Item1 * stepY;
+                var endX = startX + tileWidth;
+                var endY = startY + tileHeight;
+                var clampedLeft = Math.Max(0, Math.Min(processedWidth - 1, startX));
+                var clampedTop = Math.Max(0, Math.Min(processedHeight - 1, startY));
+                var clampedRight = Math.Max(clampedLeft + 1, Math.Min(processedWidth, endX));
+                var clampedBottom = Math.Max(clampedTop + 1, Math.Min(processedHeight, endY));
+                layout.Tiles.Add(new SampleTileLayout { Row = p.Item1, Column = p.Item2, OrderIndex = i, Rectangle = Rectangle.FromLTRB(clampedLeft, clampedTop, clampedRight, clampedBottom), Predecessor = i == 0 ? (int?)null : i - 1, Successor = i + 1 == coords.Count ? (int?)null : i + 1, Status = SampleTileState.Pending });
             }
             return layout;
+        }
+
+        private static int CalculateFallbackTileSize(int processedSize, int count, double overlapValue, OverlapUnit overlapUnit)
+        {
+            if (count <= 1) return processedSize;
+            var overlap = overlapUnit == OverlapUnit.Percent ? 0.0 : overlapValue;
+            var tile = (processedSize + (count - 1) * overlap) / count;
+            return Math.Max(1, (int)Math.Ceiling(tile));
+        }
+
+        private static int CalculateOverlap(int tileSize, double overlapValue, OverlapUnit overlapUnit)
+        {
+            var overlap = overlapUnit == OverlapUnit.Percent ? tileSize * overlapValue / 100.0 : overlapValue;
+            return Math.Max(0, (int)Math.Round(overlap));
+        }
+
+        private static void AddCoverageWarning(IList<string> warnings, string axis, int processedSize, int requiredSize)
+        {
+            var delta = processedSize - requiredSize;
+            if (delta > 0) warnings.Add("Unused processed " + axis + ": " + delta + " px");
+            else if (delta < 0) warnings.Add("Tile grid exceeds processed " + axis + " by " + (-delta) + " px");
         }
         private static IEnumerable<Tuple<int,int>> PhysicalOrder(GerberSampleConfig c)
         {

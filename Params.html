@@ -179,7 +179,7 @@
     <li><code>OverlapUnit</code>: enum overlap gồm <code>Pixel</code>, <code>Percent</code>.</li>
     <li><code>SamplePreprocessMode</code>: enum preprocess gồm <code>None</code>, <code>Resize</code>, <code>FitPad</code>, <code>CenterCrop</code>.</li>
     <li><code>SampleOutputFormat</code>: enum output gồm <code>Png</code>, <code>Bmp</code>, <code>Jpeg</code>.</li>
-    <li><code>GerberSampleConfigValidator.Validate</code>: validate <code>Rows</code>/<code>Columns</code>, pixel/percent overlap và reject non-uniform resize khi <code>KeepAspectRatio=true</code>.</li>
+    <li><code>GerberSampleConfigValidator.Validate</code>: validate <code>Rows</code>/<code>Columns</code>, pixel/percent overlap theo tile size, và reject khi <code>tileWidth &lt;= overlapX</code> hoặc <code>tileHeight &lt;= overlapY</code>.</li>
   </ul>
   <h2>GerberStitching.Core/Imaging/SampleTileGenerator</h2>
   <ul>
@@ -198,7 +198,7 @@
     <li><code>SampleConfigStore</code>: load/create/save config độc lập WinForms, tự tạo thư mục, ghi file tạm, đọc lại xác nhận và backup JSON lỗi dạng <code>.invalid_yyyyMMdd_HHmmss.json</code>.</li>
     <li><code>btnSaveConfig</code>: nút mới nằm cạnh <code>btnLoadSampleConfig</code>; cả hai dùng đường dẫn cố định, không mở dialog config.</li>
     <li><code>btnOpenSample_Click</code>: decode ảnh raster lớn/TIFF/BigTIFF bằng <code>HOperatorSet.ReadImage</code>, giữ <code>HObject</code> owned bởi Tab 2, gán cho <code>sampleWindow.SetSourceImage(..., true)</code> và tính grid ngay từ <code>GetImageSize</code>.</li>
-    <li><code>SampleGeometryCalculator.Calculate</code>: tạo <code>SampleGridLayout</code> deterministic từ kích thước ảnh processed, rows/columns, overlap và start order.</li>
+    <li><code>SampleGeometryCalculator.Calculate</code>: tạo <code>SampleGridLayout</code> deterministic từ kích thước ảnh processed thật, rows/columns, overlap, start order, và <code>GerberSampleConfig.ProcessedWidth</code>/<code>ProcessedHeight</code> được hiểu là kích thước tile mong muốn.</li>
     <li><code>RenderGridOverlay</code>: vẽ rectangle pending dạng viền đỏ, label <code>OrderIndex</code>, và chuyển tile sang xanh lá khi progress hoàn tất tile đó qua HALCON overlay, không rasterize trực tiếp lên bitmap source.</li>
     <li><code>GerberSampleWindow.SetSourceImage</code>: control mới kế thừa <code>EWindowControl.EWindowControl</code>, nhận <code>HObject</code>, copy nội bộ, bật base image và fit; không sửa project <code>EWindowControl</code>.</li>
     <li><code>GerberSampleWindow.RenderImageOverlay</code>: render rectangle theo image coordinate bằng HALCON <code>margin</code> mode để chỉ thấy viền, kèm label <code>OrderIndex</code> màu vàng có box để dễ đọc.</li>
@@ -234,8 +234,10 @@
 </ul>
 <h2>Tab 2 overlay and overlap variables</h2>
 <ul>
-  <li><code>AxisSegments.TileSize</code>: crop size including overlap, calculated as <code>(processedSize + (count - 1) * overlap) / count</code>.</li>
-  <li><code>AxisSegments.Step</code>: distance between tile starts, calculated as <code>TileSize - overlap</code>; for 4096 tile and 60 overlap the step is 4036.</li>
+  <li><code>SampleGridLayout.TileWidth</code> and <code>TileHeight</code>: desired per-tile dimensions; when <code>GerberSampleConfig.ProcessedWidth</code>/<code>ProcessedHeight</code> are greater than zero they are treated as tile size, otherwise fallback geometry is derived from the actual processed image size.</li>
+  <li><code>overlapX</code> and <code>overlapY</code>: overlap measured between tiles; percent overlap is calculated from <code>TileWidth</code>/<code>TileHeight</code>, not from the full processed image.</li>
+  <li><code>SampleGridLayout.StepX</code> and <code>StepY</code>: distance between tile starts, calculated as <code>TileWidth - overlapX</code> and <code>TileHeight - overlapY</code>; for 4096 tile and 60 px overlap the step is 4036.</li>
+  <li><code>SampleGridLayout.Warnings</code>: non-blocking warnings such as unused processed width/height or tile grid overflow; rectangles are clamped to processed image bounds before preview/crop/manifest output.</li>
   <li><code>AddRectangleOutline</code>: creates HALCON XLD rectangle contours so the overlay is outline-only/margin-style.</li>
   <li><code>AddLabelContours</code>: creates seven-segment HALCON XLD digit contours for visible <code>OrderIndex</code> labels.</li>
 </ul>

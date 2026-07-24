@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using HalconDotNet;
 using System.IO;
@@ -56,7 +57,7 @@ namespace GerberViewer.Views
                     CommitWorkflowContext();
                     await PrepareCurrentSampleAsync(true);
                     sampleConfigGrid.Refresh();
-                    lblCreateSampleStatus.Text = "Sample loaded and grid rendered";
+                    SetPreparedStatus("Sample loaded and grid rendered");
                 }
                 catch (Exception ex) { lblCreateSampleStatus.Text = "Sample load failed"; MessageBox.Show(this, ex.ToString(), "Open sample failed"); }
                 finally { EndCreateSampleLoading(); SetRunUiState(false); }
@@ -101,7 +102,7 @@ namespace GerberViewer.Views
                 }
                 sampleConfigGrid.Refresh();
                 await PrepareCurrentSampleAsync(false);
-                lblCreateSampleStatus.Text = "Preview refreshed";
+                SetPreparedStatus("Preview refreshed");
             }
             catch (Exception ex)
             {
@@ -194,9 +195,29 @@ namespace GerberViewer.Views
             _currentLayout = prepared.Layout;
             if (old != null) old.Dispose();
             _tileStates.Clear(); foreach (var t in _currentLayout.Tiles) _tileStates[t.OrderIndex] = SampleTileState.Pending;
+            LogLayoutWarnings(_currentLayout);
             sampleWindow.SetSourceImage(_preparedRun.ProcessedImage, fit);
             RenderGridOverlay();
         }
+        private void LogLayoutWarnings(SampleGridLayout layout)
+        {
+            if (layout == null || layout.Warnings == null || layout.Warnings.Count == 0) return;
+            var message = string.Join(Environment.NewLine, layout.Warnings.Select(w => "Sample grid warning: " + w).ToArray());
+            Trace.TraceWarning(message);
+            lblCreateSampleStatus.Text = BuildPreparedStatus("Preview prepared");
+        }
+
+        private void SetPreparedStatus(string baseStatus)
+        {
+            lblCreateSampleStatus.Text = BuildPreparedStatus(baseStatus);
+        }
+
+        private string BuildPreparedStatus(string baseStatus)
+        {
+            if (_currentLayout == null || _currentLayout.Warnings == null || _currentLayout.Warnings.Count == 0) return baseStatus;
+            return baseStatus + " - warnings: " + string.Join("; ", _currentLayout.Warnings.ToArray());
+        }
+
         private void RenderGridOverlay()
         {
             if (_sampleSourceImage == null || !_sampleSourceImage.IsInitialized()) return;
