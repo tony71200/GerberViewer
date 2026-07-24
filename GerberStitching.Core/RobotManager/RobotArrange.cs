@@ -22,8 +22,10 @@ namespace GerberViewer.Stitching.RobotManager
     {
         public static ArrangeBatchResult FromPhysicalMatrix(int groupId, ImageInfo[,] physicalMatrix, OrderOptions options)
         {
-            if (physicalMatrix == null) throw new ArgumentNullException(nameof(physicalMatrix));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            if (physicalMatrix == null) 
+                throw new ArgumentNullException(nameof(physicalMatrix));
+            if (options == null) 
+                throw new ArgumentNullException(nameof(options));
 
             var rows = physicalMatrix.GetLength(0);
             var cols = physicalMatrix.GetLength(1);
@@ -40,13 +42,23 @@ namespace GerberViewer.Stitching.RobotManager
                     var item = physicalMatrix[r, c];
                     if (item != null) { row.Add(item); items.Add(item); }
                 }
-                if (row.Count > 0) matrix.Add(row);
+                if (row.Count > 0) 
+                    matrix.Add(row);
             }
 
             return new ArrangeBatchResult
             {
                 GroupId = groupId,
-                Components = new List<ArrangeComponent> { new ArrangeComponent { Index = 0, Items = items.ToArray(), Matrix = matrix, Bounds = Bounds2D.FromPoints(items) } }
+                Components = new List<ArrangeComponent> 
+                { 
+                    new ArrangeComponent 
+                    { 
+                        Index = 0, 
+                        Items = items.ToArray(), 
+                        Matrix = matrix, 
+                        Bounds = Bounds2D.FromPoints(items) 
+                    } 
+                }
             };
         }
 

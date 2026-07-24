@@ -19,7 +19,7 @@ tony71200/GerberViewer
 Target branch:
 
 ```text
-2026-07-21_Implement-Tab3
+2026-07-21_use-agent.md-as-program-title
 ```
 
 Primary target:
@@ -28,7 +28,7 @@ Primary target:
 Tab 3 — Align and Stitching
 ```
 
-This prompt explicitly authorizes implementation and refactoring of Tab 3. It overrides only the old `AGENT.md` statement that Tab 3 is out of scope. Every other repository rule remains mandatory, especially:
+This prompt explicitly authorizes implementation and refactoring of Tab 3. Current `AGENT.md` guidance also confirms Tab 3 is in scope; any older statement that Tab 3 is out of scope is superseded. Every other repository rule remains mandatory, especially:
 
 - Do not directly modify `EWindowControl`.
 - Do not delete external, reference, legacy, sample, ZIP, or third-party source files.

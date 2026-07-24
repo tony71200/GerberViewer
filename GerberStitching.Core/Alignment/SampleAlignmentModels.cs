@@ -10,16 +10,45 @@ namespace GerberViewer.Stitching.Alignment
         SampleAlignmentResult Align(SampleAlignmentContext context);
     }
 
-    public enum SampleAlignmentMethod { HalconNcc, PyramidEcc, NccThenPyramidEcc }
-    public enum PolarityMode { AsIs, InvertSample, InvertCaptured, InvertBoth, Auto }
-    public enum ThresholdMode { None, Fixed, Otsu, Adaptive }
-    public enum EdgePreparationMode { None, Sobel, Canny, HalconEquivalent }
-    public enum ContrastNormalizationMode { None, MinMax, HistogramStretch }
+    public enum SampleAlignmentMethod 
+    { 
+        HalconNcc, 
+        PyramidEcc, 
+        NccThenPyramidEcc 
+    }
+    public enum PolarityMode 
+    { 
+        AsIs, 
+        InvertSample, 
+        InvertCaptured, 
+        InvertBoth, 
+        Auto 
+    }
+    public enum ThresholdMode 
+    { 
+        None, 
+        Fixed, 
+        Otsu, 
+        Adaptive 
+    }
+    public enum EdgePreparationMode 
+    { 
+        None, 
+        Sobel, 
+        Canny, 
+        HalconEquivalent 
+    }
+    public enum ContrastNormalizationMode 
+    { 
+        None, 
+        MinMax, 
+        HistogramStretch 
+    }
 
     public sealed class SampleAlignmentOptions
     {
-        public double NccMinScore { get; set; } = 0.70;
-        public double EccMinCorrelation { get; set; } = 0.80;
+        public double NccMinScore { get; set; } = 0.10;
+        public double EccMinCorrelation { get; set; } = 0.23;
         public double MinOverlapRatio { get; set; } = 0.01;
         public double MaxTranslationPixels { get; set; } = 500.0;
         public double MaxAbsRotationDeg { get; set; } = 8.0;
@@ -37,8 +66,8 @@ namespace GerberViewer.Stitching.Alignment
     {
         public ContrastNormalizationMode ContrastNormalization { get; set; } = ContrastNormalizationMode.MinMax;
         public PolarityMode Polarity { get; set; } = PolarityMode.Auto;
-        public ThresholdMode Threshold { get; set; } = ThresholdMode.Otsu;
-        public byte FixedThreshold { get; set; } = 128;
+        public ThresholdMode Threshold { get; set; } = ThresholdMode.Fixed;
+        public byte FixedThreshold { get; set; } = 180;
         public int AdaptiveRadius { get; set; } = 15;
         public EdgePreparationMode EdgePreparation { get; set; } = EdgePreparationMode.Sobel;
         public bool ApplyGerberContentMask { get; set; } = true;
@@ -70,6 +99,9 @@ namespace GerberViewer.Stitching.Alignment
         public double OverlapRatio { get; set; } = double.NaN;
         public SampleAlignmentMethod Method { get; set; }
         public string PreprocessingVariant { get; set; }
+        public string PipelineStage { get; set; }
+        public string NccFailureReason { get; set; }
+        public string EccFailureReason { get; set; }
         public string RejectionReason { get; set; }
         public string Warning { get; set; }
         public IDictionary<string, Bitmap> DiagnosticImages { get; private set; } = new Dictionary<string, Bitmap>();
@@ -82,16 +114,26 @@ namespace GerberViewer.Stitching.Alignment
 
     public static class Homography
     {
-        public static double[,] Identity() { return new[,] { { 1d, 0d, 0d }, { 0d, 1d, 0d }, { 0d, 0d, 1d } }; }
+        public static double[,] Identity() 
+        { 
+            return new[,] { { 1d, 0d, 0d }, { 0d, 1d, 0d }, { 0d, 0d, 1d } }; 
+        }
         public static double[,] FromPose(double tx, double ty, double angleRad, double scale)
         {
             var c = Math.Cos(angleRad) * scale; var s = Math.Sin(angleRad) * scale;
-            return new[,] { { c, -s, tx }, { s, c, ty }, { 0d, 0d, 1d } };
+            return new[,] { 
+                { c, -s, tx }, 
+                { s, c, ty }, 
+                { 0d, 0d, 1d } 
+            };
         }
         public static bool IsFinite(double[,] h)
         {
             if (h == null || h.GetLength(0) != 3 || h.GetLength(1) != 3) return false;
-            for (int r = 0; r < 3; r++) for (int c = 0; c < 3; c++) if (double.IsNaN(h[r, c]) || double.IsInfinity(h[r, c])) return false;
+            for (int r = 0; r < 3; r++) 
+                for (int c = 0; c < 3; c++) 
+                    if (double.IsNaN(h[r, c]) || double.IsInfinity(h[r, c])) 
+                        return false;
             return Math.Abs(h[2, 2]) > 1e-12;
         }
     }

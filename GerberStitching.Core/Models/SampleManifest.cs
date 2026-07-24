@@ -1,17 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
-using System.Text;
 
 namespace GerberViewer.Stitching.Models
 {
     [DataContract]
     public sealed class SampleManifest
     {
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
         [DataMember(Order = 1)] public int ManifestVersion { get; set; }
         [DataMember(Order = 2)] public string RootDirectory { get; set; }
         [DataMember(Order = 3)] public string SourceRasterPath { get; set; }
@@ -23,6 +21,11 @@ namespace GerberViewer.Stitching.Models
         [DataMember(Order = 9)] public string StartOrder { get; set; }
         [DataMember(Order = 10)] public List<SampleTileInfo> Tiles { get; set; }
         [DataMember(Order = 11)] public DateTime CreatedUtc { get; set; }
+        [DataMember(Order = 12, EmitDefaultValue = false)] public string ProcessedSamplePath { get; set; }
+        [DataMember(Order = 13, EmitDefaultValue = false)] public double[][] SourceToProcessedTransform { get; set; }
+        [DataMember(Order = 14, EmitDefaultValue = false)] public string PreprocessMode { get; set; }
+        [DataMember(Order = 15)] public int ProcessedChannelCount { get; set; }
+        [DataMember(Order = 16)] public int ProcessedBitDepth { get; set; }
     }
 
     [DataContract]
@@ -52,16 +55,20 @@ namespace GerberViewer.Stitching.Models
             var result = SampleManifestValidator.Validate(manifest, requireFiles);
             if (!result.IsValid) throw new InvalidOperationException(string.Join(Environment.NewLine, result.Errors));
             var dir = Path.GetDirectoryName(path);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            using (var stream = File.Create(path)) new DataContractJsonSerializer(typeof(SampleManifest)).WriteObject(stream, manifest);
+            if (!string.IsNullOrEmpty(dir)) 
+                Directory.CreateDirectory(dir);
+            using (var stream = File.Create(path)) 
+                new DataContractJsonSerializer(typeof(SampleManifest)).WriteObject(stream, manifest);
             var readback = Read(path);
             var readbackResult = SampleManifestValidator.Validate(readback, requireFiles);
-            if (!readbackResult.IsValid) throw new InvalidOperationException("Manifest readback failed: " + string.Join(Environment.NewLine, readbackResult.Errors));
+            if (!readbackResult.IsValid) 
+                throw new InvalidOperationException("Manifest readback failed: " + string.Join(Environment.NewLine, readbackResult.Errors));
         }
 
         public static SampleManifest Read(string path)
         {
-            using (var stream = File.OpenRead(path)) return (SampleManifest)new DataContractJsonSerializer(typeof(SampleManifest)).ReadObject(stream);
+            using (var stream = File.OpenRead(path)) 
+                return (SampleManifest)new DataContractJsonSerializer(typeof(SampleManifest)).ReadObject(stream);
         }
     }
 
@@ -70,29 +77,86 @@ namespace GerberViewer.Stitching.Models
         public static SampleManifestValidationResult Validate(SampleManifest manifest, bool requireFiles)
         {
             var result = new SampleManifestValidationResult();
-            if (manifest == null) { result.Errors.Add("Manifest is null."); return result; }
-            if (manifest.ManifestVersion != SampleManifest.CurrentVersion) result.Errors.Add("Unsupported ManifestVersion: " + manifest.ManifestVersion + ".");
-            if (string.IsNullOrWhiteSpace(manifest.RootDirectory)) result.Errors.Add("RootDirectory is required.");
-            if (manifest.ProcessedWidth <= 0 || manifest.ProcessedHeight <= 0) result.Errors.Add("Processed dimensions must be positive.");
-            if (manifest.SourceWidth <= 0 || manifest.SourceHeight <= 0) result.Errors.Add("Source dimensions must be positive.");
-            if (manifest.Tiles == null || manifest.Tiles.Count == 0) { result.Errors.Add("Tiles must not be empty."); return result; }
-            var orders = new HashSet<int>(); var cells = new HashSet<string>();
+            if (manifest == null) 
+            { 
+                result.Errors.Add("Manifest is null."); 
+                return result; 
+            }
+            if (manifest.ManifestVersion <= 0) 
+                result.Errors.Add("ManifestVersion is required.");
+            else if (manifest.ManifestVersion > SampleManifest.CurrentVersion) 
+                result.Errors.Add("Unsupported ManifestVersion: " + manifest.ManifestVersion + ".");
+            if (string.IsNullOrWhiteSpace(manifest.RootDirectory)) 
+                result.Errors.Add("RootDirectory is required.");
+            if (manifest.ProcessedWidth <= 0 || manifest.ProcessedHeight <= 0) 
+                result.Errors.Add("Processed dimensions must be positive.");
+            if (manifest.SourceWidth <= 0 || manifest.SourceHeight <= 0) 
+                result.Errors.Add("Source dimensions must be positive.");
+            if (manifest.ManifestVersion >= 2)
+            {
+                if (manifest.ProcessedChannelCount < 0) 
+                    result.Errors.Add("ProcessedChannelCount must not be negative.");
+                if (manifest.ProcessedBitDepth < 0) 
+                    result.Errors.Add("ProcessedBitDepth must not be negative.");
+                if (manifest.SourceToProcessedTransform != null && !IsValidTransform(manifest.SourceToProcessedTransform)) 
+                    result.Errors.Add("SourceToProcessedTransform must be a finite 3x3 affine matrix.");
+                if (requireFiles && 
+                    !string.IsNullOrWhiteSpace(manifest.ProcessedSamplePath) && 
+                    !File.Exists(manifest.ProcessedSamplePath)) 
+                    result.Errors.Add("ProcessedSamplePath unreadable/missing: " + manifest.ProcessedSamplePath);
+            }
+            if (manifest.Tiles == null || manifest.Tiles.Count == 0) 
+            { 
+                result.Errors.Add("Tiles must not be empty."); 
+                return result; 
+            }
+            var orders = new HashSet<int>(); 
+            var cells = new HashSet<string>();
             foreach (var t in manifest.Tiles)
             {
-                if (t == null) { result.Errors.Add("Tile is null."); continue; }
-                if (!orders.Add(t.OrderIndex)) result.Errors.Add("Duplicate OrderIndex: " + t.OrderIndex + ".");
+                if (t == null) 
+                { 
+                    result.Errors.Add("Tile is null."); 
+                    continue; 
+                }
+                if (!orders.Add(t.OrderIndex)) 
+                    result.Errors.Add("Duplicate OrderIndex: " + t.OrderIndex + ".");
                 var cell = t.Row + "," + t.Column;
-                if (!cells.Add(cell)) result.Errors.Add("Duplicate Row/Column: " + cell + ".");
-                if (t.OrderIndex < 0) result.Errors.Add("Negative OrderIndex: " + t.OrderIndex + ".");
-                if (t.Row < 0 || t.Column < 0) result.Errors.Add("Negative Row/Column at order " + t.OrderIndex + ".");
-                if (t.ExpectedX < 0 || t.ExpectedY < 0) result.Errors.Add("Negative ExpectedX/Y at order " + t.OrderIndex + ".");
-                if (t.Width <= 0 || t.Height <= 0) result.Errors.Add("Non-positive Width/Height at order " + t.OrderIndex + ".");
-                if (t.ExpectedX + t.Width > manifest.ProcessedWidth || t.ExpectedY + t.Height > manifest.ProcessedHeight) result.Errors.Add("Tile outside processed image at order " + t.OrderIndex + ".");
-                if (string.IsNullOrWhiteSpace(t.ExpectedPath)) result.Errors.Add("ExpectedPath missing at order " + t.OrderIndex + ".");
-                else if (requireFiles && !File.Exists(t.ExpectedPath)) result.Errors.Add("ExpectedPath unreadable/missing at order " + t.OrderIndex + ": " + t.ExpectedPath);
+                if (!cells.Add(cell)) 
+                    result.Errors.Add("Duplicate Row/Column: " + cell + ".");
+                if (t.OrderIndex < 0) 
+                    result.Errors.Add("Negative OrderIndex: " + t.OrderIndex + ".");
+                if (t.Row < 0 || t.Column < 0) 
+                    result.Errors.Add("Negative Row/Column at order " + t.OrderIndex + ".");
+                if (t.ExpectedX < 0 || t.ExpectedY < 0) 
+                    result.Errors.Add("Negative ExpectedX/Y at order " + t.OrderIndex + ".");
+                if (t.Width <= 0 || t.Height <= 0) 
+                    result.Errors.Add("Non-positive Width/Height at order " + t.OrderIndex + ".");
+                if (t.ExpectedX + t.Width > manifest.ProcessedWidth || t.ExpectedY + t.Height > manifest.ProcessedHeight) 
+                    result.Errors.Add("Tile outside processed image at order " + t.OrderIndex + ".");
+                if (string.IsNullOrWhiteSpace(t.ExpectedPath)) 
+                    result.Errors.Add("ExpectedPath missing at order " + t.OrderIndex + ".");
+                else if (requireFiles && !File.Exists(t.ExpectedPath)) 
+                    result.Errors.Add("ExpectedPath unreadable/missing at order " + t.OrderIndex + ": " + t.ExpectedPath);
             }
-            for (int i = 0; i < manifest.Tiles.Count; i++) if (!orders.Contains(i)) result.Errors.Add("Missing OrderIndex: " + i + ".");
+            for (int i = 0; i < manifest.Tiles.Count; i++) 
+                if (!orders.Contains(i)) 
+                    result.Errors.Add("Missing OrderIndex: " + i + ".");
             return result;
+        }
+
+        private static bool IsValidTransform(double[][] h)
+        {
+            if (h == null || h.Length != 3) return false;
+            for (int r = 0; r < 3; r++)
+            {
+                if (h[r] == null || h[r].Length != 3) 
+                    return false;
+                for (int c = 0; c < 3; c++) 
+                    if (double.IsNaN(h[r][c]) || double.IsInfinity(h[r][c])) 
+                        return false;
+            }
+            return Math.Abs(h[2][0]) < 1e-12 && Math.Abs(h[2][1]) < 1e-12 && Math.Abs(h[2][2] - 1.0) < 1e-12;
         }
     }
 }
