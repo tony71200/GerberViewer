@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using HalconDotNet;
 
 namespace GerberViewer.Views
@@ -38,8 +39,8 @@ namespace GerberViewer.Views
         {
             ClearOverlayRegions();
             var zoom = Math.Max(0.01d, CurrentZoom);
-            var lineWidth = Math.Max(1, (int)Math.Round(2d / zoom));
-            var labelSize = Math.Max(4, (int)Math.Round(14d / zoom));
+            var lineWidth = Math.Max(1, Math.Min(8, (int)Math.Round(2d / zoom)));
+            var labelSize = Math.Max(8, Math.Min(64, (int)Math.Round(14d / zoom)));
             if (overlays != null)
             {
                 foreach (var overlay in overlays)
@@ -47,7 +48,7 @@ namespace GerberViewer.Views
                     if (overlay == null) continue;
                     var rect = overlay.Item1;
                     AddRectangleOutline(rect, lineWidth, ToRgba(overlay.Item2));
-                    AddLabelContours(overlay.Item3, rect.Left + lineWidth * 3, rect.Top + lineWidth * 4, labelSize, lineWidth);
+                    AddLabelTextRegions(overlay.Item3, rect.Left + lineWidth * 3, rect.Top + lineWidth * 4, labelSize, Math.Max(1, lineWidth), ToRgba("black"), ToRgba("white"));
                 }
             }
             if (_overlayRegions.Count > 0) ShowRegions(_overlayRegions, _overlayColors, false);
@@ -68,76 +69,98 @@ namespace GerberViewer.Views
             AddFilledRect(top, Math.Max(left, right - lineWidth), bottom, right, color);
         }
 
-        private void AddLabelContours(string text, int x, int y, int size, int lineWidth)
+        private void AddLabelTextRegions(string text, int x, int y, int size, int borderWidth, int[] borderColor, int[] textColor)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
-            var cursor = x;
-            foreach (var ch in text)
+            using (var font = new Font(FontFamily.GenericSansSerif, Math.Max(6, size), FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var probe = new Bitmap(1, 1))
+            using (var probeGraphics = Graphics.FromImage(probe))
             {
-                if (char.IsDigit(ch)) AddDigitContours(ch - '0', cursor, y, size, lineWidth, ToRgba("yellow"));
-                cursor += Math.Max(1, size / 2) + lineWidth * 2;
+                var measured = Size.Ceiling(probeGraphics.MeasureString(text, font));
+                var pad = Math.Max(2, borderWidth * 2);
+                var width = Math.Max(1, measured.Width + pad * 2);
+                var height = Math.Max(1, measured.Height + pad * 2);
+                using (var borderMask = new Bitmap(width, height))
+                using (var textMask = new Bitmap(width, height))
+                {
+                    DrawTextMask(borderMask, text, font, pad, pad, borderWidth, true);
+                    DrawTextMask(textMask, text, font, pad, pad, 0, false);
+                    AddMaskRegion(borderMask, x - pad, y - pad, borderColor);
+                    AddMaskRegion(textMask, x - pad, y - pad, textColor);
+                }
             }
         }
 
-        private void AddDigitContours(int digit, int x, int y, int size, int lineWidth, int[] color)
+        private static void DrawTextMask(Bitmap bitmap, string text, Font font, int x, int y, int borderWidth, bool drawBorder)
         {
-            var segments = DigitSegments(digit);
-            var w = Math.Max(4, size / 2);
-            var h = Math.Max(7, size);
-            var half = h / 2;
-            if (segments[0]) AddSegment(y, x, y, x + w, lineWidth, color);
-            if (segments[1]) AddSegment(y, x + w, y + half, x + w, lineWidth, color);
-            if (segments[2]) AddSegment(y + half, x + w, y + h, x + w, lineWidth, color);
-            if (segments[3]) AddSegment(y + h, x, y + h, x + w, lineWidth, color);
-            if (segments[4]) AddSegment(y + half, x, y + h, x, lineWidth, color);
-            if (segments[5]) AddSegment(y, x, y + half, x, lineWidth, color);
-            if (segments[6]) AddSegment(y + half, x, y + half, x + w, lineWidth, color);
+            using (var graphics = Graphics.FromImage(bitmap))
+            using (var path = new GraphicsPath())
+            using (var brush = new SolidBrush(Color.White))
+            {
+                graphics.Clear(Color.Black);
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                path.AddString(text, font.FontFamily, (int)font.Style, font.Size, new Point(x, y), StringFormat.GenericDefault);
+                if (drawBorder)
+                {
+                    using (var pen = new Pen(Color.White, Math.Max(1, borderWidth * 2)))
+                    {
+                        pen.LineJoin = LineJoin.Round;
+                        graphics.DrawPath(pen, path);
+                    }
+                }
+                else
+                {
+                    graphics.FillPath(brush, path);
+                }
+            }
         }
 
-        private void AddSegment(int row1, int col1, int row2, int col2, int lineWidth, int[] color)
+        private void AddMaskRegion(Bitmap bitmap, int offsetX, int offsetY, int[] color)
         {
-            if (row1 == row2)
+            var rows = new List<int>();
+            var starts = new List<int>();
+            var ends = new List<int>();
+            for (int row = 0; row < bitmap.Height; row++)
             {
-                var top = row1 - lineWidth / 2;
-                AddFilledRect(top, Math.Min(col1, col2), top + lineWidth, Math.Max(col1, col2) + lineWidth, color);
+                int runStart = -1;
+                for (int col = 0; col < bitmap.Width; col++)
+                {
+                    var active = bitmap.GetPixel(col, row).R > 16;
+                    if (active && runStart < 0) runStart = col;
+                    if ((!active || col + 1 == bitmap.Width) && runStart >= 0)
+                    {
+                        var runEnd = active && col + 1 == bitmap.Width ? col : col - 1;
+                        rows.Add(offsetY + row);
+                        starts.Add(offsetX + runStart);
+                        ends.Add(offsetX + runEnd);
+                        runStart = -1;
+                    }
+                }
             }
-            else
-            {
-                var left = col1 - lineWidth / 2;
-                AddFilledRect(Math.Min(row1, row2), left, Math.Max(row1, row2) + lineWidth, left + lineWidth, color);
-            }
+            if (rows.Count == 0) return;
+            HObject region = null;
+            HOperatorSet.GenRegionRuns(out region, new HTuple(rows.ToArray()), new HTuple(starts.ToArray()), new HTuple(ends.ToArray()));
+            _overlayRegions.Add(region);
+            _overlayColors.Add(color);
         }
+
 
         private void AddFilledRect(int top, int left, int bottom, int right, int[] color)
         {
+            if (bottom <= top || right <= left) return;
             HObject region = null;
             HOperatorSet.GenRectangle1(out region, top, left, Math.Max(top, bottom - 1), Math.Max(left, right - 1));
             _overlayRegions.Add(region);
             _overlayColors.Add(color);
         }
 
-        private static bool[] DigitSegments(int digit)
-        {
-            switch (digit)
-            {
-                case 0: return new[] { true, true, true, true, true, true, false };
-                case 1: return new[] { false, true, true, false, false, false, false };
-                case 2: return new[] { true, true, false, true, true, false, true };
-                case 3: return new[] { true, true, true, true, false, false, true };
-                case 4: return new[] { false, true, true, false, false, true, true };
-                case 5: return new[] { true, false, true, true, false, true, true };
-                case 6: return new[] { true, false, true, true, true, true, true };
-                case 7: return new[] { true, true, true, false, false, false, false };
-                case 8: return new[] { true, true, true, true, true, true, true };
-                case 9: return new[] { true, true, true, true, false, true, true };
-                default: return new[] { false, false, false, false, false, false, false };
-            }
-        }
-
         private static int[] ToRgba(string color)
         {
             if (string.Equals(color, "green", StringComparison.OrdinalIgnoreCase)) return new[] { 0, 200, 0, 150 };
             if (string.Equals(color, "yellow", StringComparison.OrdinalIgnoreCase)) return new[] { 255, 220, 0, 150 };
+            if (string.Equals(color, "white", StringComparison.OrdinalIgnoreCase)) return new[] { 255, 255, 255, 220 };
+            if (string.Equals(color, "black", StringComparison.OrdinalIgnoreCase)) return new[] { 0, 0, 0, 220 };
             return new[] { 255, 0, 0, 150 };
         }
 

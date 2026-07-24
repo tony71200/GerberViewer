@@ -89,8 +89,8 @@ namespace GerberViewer.Stitching.Imaging
                     snapshot, 
                     cancellationToken);
                 var processedSize = GetSize(processed);
-                var layout = SampleGeometryCalculator.Calculate(processedSize.Width-25, processedSize.Height-9, snapshot);
-                return new PreparedSampleRun(ownedSource, processed, sourceSize.Width-25, sourceSize.Height -9, processedSize.Width, processedSize.Height, snapshot, layout, new ImagePreprocessMetadata { Mode = snapshot.PreprocessMode, KeepAspectRatio = snapshot.KeepAspectRatio, Inverted = snapshot.InvertImage });
+                var layout = SampleGeometryCalculator.Calculate(processedSize.Width, processedSize.Height, snapshot);
+                return new PreparedSampleRun(ownedSource, processed, sourceSize.Width, sourceSize.Height, processedSize.Width, processedSize.Height, snapshot, layout, new ImagePreprocessMetadata { Mode = snapshot.PreprocessMode, KeepAspectRatio = snapshot.KeepAspectRatio, Inverted = snapshot.InvertImage });
             }
             catch
             {
@@ -106,8 +106,8 @@ namespace GerberViewer.Stitching.Imaging
         {
             ct.ThrowIfCancellationRequested();
             HObject result = null;
-            var width = config.ProcessedWidth > 0 ? config.ProcessedWidth : sourceSize.Width;
-            var height = config.ProcessedHeight > 0 ? config.ProcessedHeight : sourceSize.Height;
+            var width = sourceSize.Width;
+            var height = sourceSize.Height;
             if (config.PreprocessMode == SamplePreprocessMode.None || 
                 (width == sourceSize.Width && height == sourceSize.Height)) 
                 HOperatorSet.CopyImage(source, out result);
