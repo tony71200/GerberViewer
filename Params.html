@@ -201,7 +201,7 @@
     <li><code>SampleGeometryCalculator.Calculate</code>: tạo <code>SampleGridLayout</code> deterministic từ kích thước ảnh processed thật, rows/columns, overlap, start order, và <code>GerberSampleConfig.ProcessedWidth</code>/<code>ProcessedHeight</code> được hiểu là kích thước tile mong muốn.</li>
     <li><code>RenderGridOverlay</code>: vẽ rectangle pending dạng viền đỏ, label <code>OrderIndex</code>, và chuyển tile sang xanh lá khi progress hoàn tất tile đó qua HALCON overlay, không rasterize trực tiếp lên bitmap source.</li>
     <li><code>GerberSampleWindow.SetSourceImage</code>: control mới kế thừa <code>EWindowControl.EWindowControl</code>, nhận <code>HObject</code>, copy nội bộ, bật base image và fit; không sửa project <code>EWindowControl</code>.</li>
-    <li><code>GerberSampleWindow.RenderImageOverlay</code>: render rectangle theo image coordinate bằng HALCON <code>margin</code> mode để chỉ thấy viền, kèm label <code>OrderIndex</code> màu vàng có box để dễ đọc.</li>
+    <li><code>GerberSampleWindow.RenderImageOverlay</code>: render rectangle theo image coordinate bằng HALCON region outline, kèm label <code>OrderIndex</code> bằng chữ số font thường có viền tương phản/ngược màu để dễ đọc.</li>
     <li><code>btnRefreshPreview</code>: refresh lại layout/order preview từ config hiện tại trong <code>sampleConfigGrid</code> mà không cần mở lại ảnh.</li>
     <li><code>SetRunUiState</code>: disable Open/Load/Save/Create khi worker đang chạy và chỉ enable Cancel trong lúc chạy.</li>
     <li><code>CommitWorkflowContext</code>: chỉ map <code>SourceRasterPath</code> sang <code>Workflow.Models.SampleGerberConfig</code>, không gán trực tiếp <code>Configuration.GerberSampleConfig</code> để tránh lỗi kiểu CS0029.</li>
@@ -239,13 +239,14 @@
   <li><code>SampleGridLayout.StepX</code> and <code>StepY</code>: distance between tile starts, calculated as <code>TileWidth - overlapX</code> and <code>TileHeight - overlapY</code>; for 4096 tile and 60 px overlap the step is 4036.</li>
   <li><code>SampleGridLayout.Warnings</code>: non-blocking warnings such as unused processed width/height or tile grid overflow; rectangles are clamped to processed image bounds before preview/crop/manifest output.</li>
   <li><code>AddRectangleOutline</code>: creates HALCON XLD rectangle contours so the overlay is outline-only/margin-style.</li>
-  <li><code>AddLabelContours</code>: creates seven-segment HALCON XLD digit contours for visible <code>OrderIndex</code> labels.</li>
+  <li><code>AddLabelTextRegions</code>: creates normal bold-font <code>OrderIndex</code> label regions with a dark inverse/contrast border and light fill instead of seven-segment digital digits.</li>
+  <li><code>DrawTextMask</code> and <code>AddMaskRegion</code>: render small owned GDI+ text masks and convert active runs into HALCON regions, avoiding full-size image bitmap conversion.</li>
 </ul>
 <h2>Tab 2 zoom-aware overlay variables</h2>
 <ul>
   <li><code>CurrentZoom</code>: inherited viewer zoom value used by <code>RenderImageOverlay</code> to scale overlay geometry.</li>
-  <li><code>lineWidth</code>: image-coordinate rectangle/segment thickness calculated as <code>max(1, round(2 / CurrentZoom))</code>.</li>
-  <li><code>labelSize</code>: image-coordinate order-number size calculated as <code>max(4, round(14 / CurrentZoom))</code>.</li>
+  <li><code>lineWidth</code>: image-coordinate rectangle and label-outline thickness calculated as <code>max(1, round(2 / CurrentZoom))</code>.</li>
+  <li><code>labelSize</code>: image-coordinate normal-font order-number size calculated as <code>max(4, round(14 / CurrentZoom))</code>.</li>
 </ul>
 
 <h2>Tab 3 align/stitch workflow variables</h2>
