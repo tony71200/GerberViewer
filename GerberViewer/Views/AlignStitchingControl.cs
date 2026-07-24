@@ -56,8 +56,22 @@ namespace GerberViewer.Views
             }
         }
 
-        public AlignStitchingControl() { InitializeComponent(); InitializeLogger(); alignConfigGrid.SelectedObject = _config; orderPathCanvas.NodeSelected += orderPathCanvas_NodeSelected; lstCapturedImages.SelectedIndexChanged += lstCapturedImages_SelectedIndexChanged; RefreshContextUi(); }
-        private void InitializeLogger() { _logger.Debug = true; _logger.SetOpenListBox(true, lstTab3Log); _logger.SetOpenFile(true, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "Tab3"), "AlignStitch"); }
+        public AlignStitchingControl() 
+        { 
+            InitializeComponent(); 
+            InitializeLogger(); 
+            alignConfigGrid.SelectedObject = _config; 
+            orderPathCanvas.NodeSelected += orderPathCanvas_NodeSelected; 
+            lstCapturedImages.SelectedIndexChanged += lstCapturedImages_SelectedIndexChanged; 
+            RefreshContextUi(); 
+        }
+        private void InitializeLogger() 
+        { 
+            _logger.Debug = true; 
+            _logger.SetOpenListBox(true, lstTab3Log);
+            // Should Fix: When open in visual Studio AppDomain.CurrentDomain.BaseDirectory go to "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\" automatically
+            _logger.SetOpenFile(true, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "Tab3"), "AlignStitch"); 
+        }
         private void WorkflowContext_Changed(object sender, EventArgs e) { RefreshContextUi(); }
 
         private void RefreshContextUi()
@@ -451,6 +465,7 @@ namespace GerberViewer.Views
                 Directory.Move(dir, target);
             }
             Directory.Delete(creatingDir, true);
+            return finalRunDir;
         }
 
         private static void CleanupCreatingDirectory(string creatingDir)
