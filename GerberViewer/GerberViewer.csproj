@@ -127,11 +127,26 @@
     <Compile Include="Stitching\PathCanvasControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Include="Stitching\PathCanvasControl.Designer.cs">
+      <DependentUpon>PathCanvasControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="Views\AlignStitchingControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Views\AlignStitchingControl.Designer.cs">
       <DependentUpon>AlignStitchingControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ComparisonImageView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\ComparisonImageView.Designer.cs">
+      <DependentUpon>ComparisonImageView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\SampleComparisonControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\SampleComparisonControl.Designer.cs">
+      <DependentUpon>SampleComparisonControl.cs</DependentUpon>
     </Compile>
     <Compile Include="Workflow\Models\WorkflowContext.cs" />
     <Compile Include="Workflow\HalconRuntimeValidator.cs" />
@@ -149,8 +164,20 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
+    <EmbeddedResource Include="Views\AlignStitchingControl.resx">
+      <DependentUpon>AlignStitchingControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\ComparisonImageView.resx">
+      <DependentUpon>ComparisonImageView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\SampleComparisonControl.resx">
+      <DependentUpon>SampleComparisonControl.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Views\CreateGerberSampleControl.resx">
       <DependentUpon>CreateGerberSampleControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Stitching\PathCanvasControl.resx">
+      <DependentUpon>PathCanvasControl.cs</DependentUpon>
     </EmbeddedResource>
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
