@@ -48,6 +48,7 @@ namespace GerberViewer.Views
                 try
                 {
                     SetRunUiState(true);
+                    BeginCreateSampleLoading("Loading sample image...");
                     HObject decoded = null;
                     var selectedPath = dlg.FileName;
                     await Task.Run(() => HOperatorSet.ReadImage(out decoded, selectedPath));
@@ -58,7 +59,7 @@ namespace GerberViewer.Views
                     lblCreateSampleStatus.Text = "Sample loaded and grid rendered";
                 }
                 catch (Exception ex) { lblCreateSampleStatus.Text = "Sample load failed"; MessageBox.Show(this, ex.ToString(), "Open sample failed"); }
-                finally { SetRunUiState(false); }
+                finally { EndCreateSampleLoading(); SetRunUiState(false); }
             }
         }
 
@@ -114,7 +115,7 @@ namespace GerberViewer.Views
             if (_preparedRun == null || string.IsNullOrWhiteSpace(_sampleConfig.SourceRasterPath) || !File.Exists(_sampleConfig.SourceRasterPath)) { MessageBox.Show(this, "Please select a sample raster first and refresh preview."); return; }
             using (var dlg = new FolderBrowserDialog()) { dlg.Description = "Select sample output root directory"; if (dlg.ShowDialog(this) != DialogResult.OK) return; _sampleConfig.OutputDirectory = dlg.SelectedPath; }
             if (!ConfirmOutputRoot(_sampleConfig.OutputDirectory)) return;
-            SetRunUiState(true); prgCreateSample.Value = 0; _createSampleCts = new CancellationTokenSource();
+            SetRunUiState(true); prgCreateSample.Style = ProgressBarStyle.Blocks; prgCreateSample.MarqueeAnimationSpeed = 0; prgCreateSample.Value = 0; _createSampleCts = new CancellationTokenSource();
             var progress = new Progress<SampleCropProgress>(p => { prgCreateSample.Maximum = Math.Max(1, p.Total); prgCreateSample.Value = Math.Min(prgCreateSample.Maximum, p.Completed); lblCreateSampleStatus.Text = p.Message; if (_currentLayout != null) { _tileStates[p.OrderIndex] = p.State; RenderGridOverlay(); } });
             try
             {
@@ -128,6 +129,20 @@ namespace GerberViewer.Views
         }
 
         private void btnCancelCreateSample_Click(object sender, EventArgs e) { if (_createSampleCts != null) _createSampleCts.Cancel(); }
+
+        private void BeginCreateSampleLoading(string message)
+        {
+            prgCreateSample.Style = ProgressBarStyle.Marquee;
+            prgCreateSample.MarqueeAnimationSpeed = 30;
+            lblCreateSampleStatus.Text = message;
+        }
+
+        private void EndCreateSampleLoading()
+        {
+            prgCreateSample.Style = ProgressBarStyle.Blocks;
+            prgCreateSample.MarqueeAnimationSpeed = 0;
+            prgCreateSample.Value = 0;
+        }
 
         private void CommitConfig(GerberSampleConfig config, string status)
         {
