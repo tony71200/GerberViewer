@@ -431,7 +431,7 @@ namespace GerberViewer.Views
             if (!File.Exists(comparisonMetadata)) throw new IOException("Comparison metadata was not generated before publish.");
         }
 
-        private static void PublishRunDirectory(string finalRunDir, string creatingDir)
+        private static string PublishRunDirectory(string finalRunDir, string creatingDir)
         {
             if (!Directory.Exists(creatingDir)) throw new DirectoryNotFoundException("Creating directory missing before publish: " + creatingDir);
             foreach (var file in Directory.GetFiles(creatingDir))
