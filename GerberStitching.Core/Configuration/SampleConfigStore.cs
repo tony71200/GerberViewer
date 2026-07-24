@@ -8,7 +8,10 @@ namespace GerberViewer.Stitching.Configuration
     {
         private readonly string _path;
         public SampleConfigStore() : this(AppPaths.SampleConfigPath) { }
-        public SampleConfigStore(string path) { _path = path ?? throw new ArgumentNullException(nameof(path)); }
+        public SampleConfigStore(string path) 
+        { 
+            _path = path ?? throw new ArgumentNullException(nameof(path)); 
+        }
         public string ConfigPath { get { return _path; } }
 
         public GerberSampleConfig LoadOrCreateDefault()
@@ -37,7 +40,8 @@ namespace GerberViewer.Stitching.Configuration
             {
                 var serializer = new DataContractJsonSerializer(typeof(GerberSampleConfig));
                 var config = serializer.ReadObject(stream) as GerberSampleConfig;
-                if (config == null) throw new InvalidDataException("Sample config JSON did not contain a GerberSampleConfig.");
+                if (config == null) 
+                    throw new InvalidDataException("Sample config JSON did not contain a GerberSampleConfig.");
                 return config;
             }
         }

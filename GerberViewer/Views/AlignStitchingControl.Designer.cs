@@ -12,6 +12,7 @@ namespace GerberViewer.Views
         private System.Windows.Forms.TabPage tabOrderView, tabDiagnostics, tabStitchedImage, tabComparison, tabLogs;
         private GerberViewer.Stitching.DesignControls.PathCanvasControl orderPathCanvas;
         private System.Windows.Forms.PictureBox picStitchedImage;
+        private System.Windows.Forms.CheckBox chkShowSampleMask;
         private GerberViewer.Views.SampleComparisonControl sampleComparisonControl;
 
         private void InitializeComponent()
@@ -33,6 +34,7 @@ namespace GerberViewer.Views
             this.txtDiagnostics = new System.Windows.Forms.TextBox();
             this.tabStitchedImage = new System.Windows.Forms.TabPage();
             this.resultWindow = new GerberViewer.Views.GerberSampleWindow();
+            this.chkShowSampleMask = new System.Windows.Forms.CheckBox();
             this.picStitchedImage = new System.Windows.Forms.PictureBox();
             this.tabComparison = new System.Windows.Forms.TabPage();
             this.sampleComparisonControl = new GerberViewer.Views.SampleComparisonControl();
@@ -215,6 +217,7 @@ namespace GerberViewer.Views
             // tabStitchedImage
             // 
             this.tabStitchedImage.Controls.Add(this.resultWindow);
+            this.tabStitchedImage.Controls.Add(this.chkShowSampleMask);
             this.tabStitchedImage.Controls.Add(this.picStitchedImage);
             this.tabStitchedImage.Location = new System.Drawing.Point(8, 39);
             this.tabStitchedImage.Name = "tabStitchedImage";
@@ -224,16 +227,18 @@ namespace GerberViewer.Views
             // 
             // resultWindow
             // 
+            this.resultWindow.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.resultWindow.DefaultRoiSize = 128;
-            this.resultWindow.Dock = System.Windows.Forms.DockStyle.Fill;
             this.resultWindow.EnableDoubleClickZoom = false;
             this.resultWindow.EnableInfo = true;
             this.resultWindow.EnableInfoFromUser = false;
             this.resultWindow.EnableMouseWheelZoom = true;
-            this.resultWindow.Location = new System.Drawing.Point(0, 0);
+            this.resultWindow.Location = new System.Drawing.Point(0, 30);
             this.resultWindow.LockRoiScale = false;
             this.resultWindow.Name = "resultWindow";
-            this.resultWindow.Size = new System.Drawing.Size(772, 454);
+            this.resultWindow.Size = new System.Drawing.Size(772, 424);
             this.resultWindow.SourceBitmap = null;
             this.resultWindow.SourceHobject = null;
             this.resultWindow.TabIndex = 1;
@@ -242,6 +247,17 @@ namespace GerberViewer.Views
             this.resultWindow.VisibleROIText = false;
             this.resultWindow.WinOperate = 1;
             this.resultWindow.ZoomRatio = 120;
+            // 
+            // chkShowSampleMask
+            // 
+            this.chkShowSampleMask.AutoSize = true;
+            this.chkShowSampleMask.Location = new System.Drawing.Point(8, 3);
+            this.chkShowSampleMask.Name = "chkShowSampleMask";
+            this.chkShowSampleMask.Size = new System.Drawing.Size(284, 29);
+            this.chkShowSampleMask.TabIndex = 2;
+            this.chkShowSampleMask.Text = "Show Tab2 sample mask";
+            this.chkShowSampleMask.UseVisualStyleBackColor = true;
+            this.chkShowSampleMask.CheckedChanged += new System.EventHandler(this.chkShowSampleMask_CheckedChanged);
             // 
             // picStitchedImage
             // 
@@ -252,6 +268,7 @@ namespace GerberViewer.Views
             this.picStitchedImage.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.picStitchedImage.TabIndex = 0;
             this.picStitchedImage.TabStop = false;
+            this.picStitchedImage.Visible = false;
             // 
             // tabComparison
             // 
@@ -418,6 +435,7 @@ namespace GerberViewer.Views
             this.tabDiagnostics.ResumeLayout(false);
             this.tabDiagnostics.PerformLayout();
             this.tabStitchedImage.ResumeLayout(false);
+            this.tabStitchedImage.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.picStitchedImage)).EndInit();
             this.tabComparison.ResumeLayout(false);
             this.tabLogs.ResumeLayout(false);

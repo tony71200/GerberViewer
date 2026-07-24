@@ -26,8 +26,8 @@ namespace GerberStitching.Tests.Matching
             Translation();
             SmallRotation();
             PolarityCandidate();
-            ScoreThreshold();
-            NoMatchRejection();
+            ScoreThresholdFallback();
+            NoMatchCenterFallback();
             CacheReuse();
             CacheDisposal();
             Cancellation();
@@ -108,7 +108,7 @@ namespace GerberStitching.Tests.Matching
             AssertNcc(3.0, 2.0, 0.0, true, false, options, "HALCON NCC must support an inverted-polarity candidate when metric allows it.");
         }
 
-        private static void ScoreThreshold()
+        private static void ScoreThresholdFallback()
         {
             using (var reference = MatcherSyntheticImageFactory.CreateAsymmetricMono8Mat(96, 72))
             using (var moving = Warp(reference, 2.0, 2.0, 0.0, false, false))
@@ -116,19 +116,26 @@ namespace GerberStitching.Tests.Matching
             {
                 var options = Options(1.01);
                 var result = matcher.Match(Request(reference, moving, "score-threshold", options), CancellationToken.None);
-                AssertFalse(result.Success, "NCC score below threshold must not succeed.");
-                AssertEqual(MatchFailureReason.CorrelationBelowThreshold, result.FailureReason, "NCC threshold rejection reason mismatch.");
+                AssertTrue(result.Success, "NCC score below threshold should fall back to reference-center placement for demo stitching.");
+                AssertEqual("true", result.Diagnostics["Fallback"], "NCC threshold fallback diagnostic mismatch.");
+                AssertNear(0, result.RotationDeg, 1e-12, "NCC threshold fallback must use zero angle.");
             }
         }
 
-        private static void NoMatchRejection()
+        private static void NoMatchCenterFallback()
         {
             using (var reference = MatcherSyntheticImageFactory.CreateAsymmetricMono8Mat(96, 72))
             using (var moving = new Mat(reference.Rows, reference.Cols, MatType.CV_8UC1, Scalar.All(0)))
             using (var matcher = new NCC_HalconMatcher())
             {
                 var result = matcher.Match(Request(reference, moving, "no-match", Options(0.7)), CancellationToken.None);
-                AssertFalse(result.Success, "No-match NCC result must be rejected.");
+                AssertTrue(result.Success, "No-match NCC result should fall back to reference-center placement for demo stitching.");
+                AssertEqual("true", result.Diagnostics["Fallback"], "No-match fallback diagnostic mismatch.");
+                AssertNear((reference.Cols - 1) / 2.0, double.Parse(result.Diagnostics["FallbackHalconColumn"], System.Globalization.CultureInfo.InvariantCulture), 1e-12, "Fallback column must be the reference center.");
+                AssertNear((reference.Rows - 1) / 2.0, double.Parse(result.Diagnostics["FallbackHalconRow"], System.Globalization.CultureInfo.InvariantCulture), 1e-12, "Fallback row must be the reference center.");
+                AssertNear(0, result.RotationDeg, 1e-12, "Fallback angle must be zero.");
+                AssertTrue(result.AlignedMovingImage != null && !result.AlignedMovingImage.Empty(), "Fallback must still produce an aligned MovingImage for stitching.");
+                result.AlignedMovingImage.Dispose();
             }
         }
 
