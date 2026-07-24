@@ -222,7 +222,7 @@ namespace GerberViewer.Views
             catch (Exception ex)
             {
                 _logger.WriteError("Run failed: " + ex);
-                CleanupCreatingDirectory(creatingDir);
+                //CleanupCreatingDirectory(creatingDir);
                 MessageBox.Show(this, ex.Message, "Align/Stitch failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
@@ -442,24 +442,15 @@ namespace GerberViewer.Views
             }
             foreach (var dir in Directory.GetDirectories(creatingDir))
             {
-                try
+                var target = Path.Combine(finalRunDir, Path.GetFileName(dir));
+                if (Directory.Exists(target))
                 {
-                    var target = Path.Combine(finalRunDir, Path.GetFileName(dir));
-                    if (Directory.Exists(target))
-                    {
-                        Directory.Delete(dir, true);
-                        continue;
-                    }
-                    Directory.Move(dir, target);
+                    Directory.Delete(dir, true);
+                    continue;
                 }
-                catch (Exception ex)
-                {
-                    
-                }
+                Directory.Move(dir, target);
             }
-
             Directory.Delete(creatingDir, true);
-            return finalRunDir;
         }
 
         private static void CleanupCreatingDirectory(string creatingDir)

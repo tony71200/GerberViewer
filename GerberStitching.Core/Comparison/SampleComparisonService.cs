@@ -10,10 +10,20 @@ using OpenCvSharp;
 
 namespace GerberViewer.Stitching.Comparison
 {
+    /// <summary>
+    /// Important code for get the sample gerber
+    /// </summary>
     public sealed class SampleComparisonService
     {
         private const string CoordinateSpace = "ProcessedSampleGlobalPixels";
-
+        /// <summary>
+        /// After stitching, compare image.
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentException"></exception>
         public SampleComparisonResult Generate(SampleComparisonRequest request, CancellationToken cancellationToken)
         {
             if (request == null) throw new ArgumentNullException("request");
@@ -342,7 +352,11 @@ namespace GerberViewer.Stitching.Comparison
             if (!Cv2.ImWrite(path, image)) throw new IOException("Failed to write comparison product: " + path);
         }
 
-        private static SampleComparisonResult GenerateHalconPreviewOnly(SampleComparisonRequest request, ComparisonMapping mapping, SampleComparisonResult result, string reason, CancellationToken cancellationToken)
+        private static SampleComparisonResult GenerateHalconPreviewOnly(
+            SampleComparisonRequest request, 
+            ComparisonMapping mapping, 
+            SampleComparisonResult result, 
+            string reason, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             result.IsAuthoritative = false;
@@ -357,7 +371,11 @@ namespace GerberViewer.Stitching.Comparison
             return result;
         }
 
-        private static void WriteHalconPreview(string sourcePath, string outputPath, double maxPreviewMegapixels, CancellationToken cancellationToken)
+        private static void WriteHalconPreview(
+            string sourcePath, 
+            string outputPath, 
+            double maxPreviewMegapixels, 
+            CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath)) throw new FileNotFoundException("HALCON preview image not found.", sourcePath);
             HObject image = null;
@@ -418,7 +436,10 @@ namespace GerberViewer.Stitching.Comparison
             return Math.Abs(h[2, 0]) < 1e-12 && Math.Abs(h[2, 1]) < 1e-12 && Math.Abs(h[2, 2] - 1.0) < 1e-12;
         }
 
-        private static double Ratio(double numerator, double denominator) { return denominator <= 0 ? 0 : numerator / denominator; }
+        private static double Ratio(double numerator, double denominator) 
+        { 
+            return denominator <= 0 ? 0 : numerator / denominator; 
+        }
 
         private static void WriteMetadata(SampleComparisonResult result, SampleComparisonRequest request, ComparisonMapping mapping, ComparisonMetrics metrics)
         {

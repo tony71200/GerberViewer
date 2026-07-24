@@ -11,18 +11,45 @@ using OpenCvSharp;
 
 namespace GerberViewer.Stitching.Stitching
 {
-    public enum StitchBlendMode { NoBlend, WeightedAverage, Feather }
-    public sealed class StitchFromGlobalTransformsOptions { public StitchingEngine StitchingEngine { get; set; } = StitchingEngine.HalconThenOpenCvFallback; public int PreviewUpdateInterval { get; set; } = 4; public double MaxPreviewMegapixels { get; set; } = 32; public TiffMode TiffMode { get; set; } = TiffMode.Auto; public StitchBlendMode BlendMode { get; set; } = StitchBlendMode.WeightedAverage; public bool EnableBlending { get; set; } public bool ForceGray8Output { get; set; } public string OutputPath { get; set; } }
-    public sealed class StitchPreview { public Bitmap Preview { get; set; } public int PlacedCount { get; set; } public int TotalCount { get; set; } }
+    public enum StitchBlendMode 
+    { 
+        NoBlend, 
+        WeightedAverage, 
+        Feather 
+    }
+    public sealed class StitchFromGlobalTransformsOptions 
+    { 
+        public StitchingEngine StitchingEngine { get; set; } = StitchingEngine.HalconThenOpenCvFallback; 
+        public int PreviewUpdateInterval { get; set; } = 4; 
+        public double MaxPreviewMegapixels { get; set; } = 32; 
+        public TiffMode TiffMode { get; set; } = TiffMode.BigTiff; 
+        public StitchBlendMode BlendMode { get; set; } = StitchBlendMode.Feather; 
+        public bool EnableBlending { get; set; } 
+        public bool ForceGray8Output { get; set; } 
+        public string OutputPath { get; set; } 
+    }
+    public sealed class StitchPreview 
+    { 
+        public Bitmap Preview { get; set; } 
+        public int PlacedCount { get; set; } 
+        public int TotalCount { get; set; } 
+    }
 
     public sealed class GlobalTransformStitcher
     {
         private readonly IImageInteropService _imageInterop = new ImageInteropService();
 
-        public string StitchFromGlobalTransforms(IList<CapturedImageInfo> images, IList<TileWorkflowState> poses, StitchFromGlobalTransformsOptions options, IProgress<StitchPreview> preview, CancellationToken cancellationToken)
+        public string StitchFromGlobalTransforms(
+            IList<CapturedImageInfo> images, 
+            IList<TileWorkflowState> poses, 
+            StitchFromGlobalTransformsOptions options, 
+            IProgress<StitchPreview> preview, 
+            CancellationToken cancellationToken)
         {
-            if (images == null) throw new ArgumentNullException("images");
-            if (poses == null) throw new ArgumentNullException("poses");
+            if (images == null) 
+                throw new ArgumentNullException("images");
+            if (poses == null) 
+                throw new ArgumentNullException("poses");
             options = options ?? new StitchFromGlobalTransformsOptions();
             var output = NormalizeTiffPath(options.OutputPath);
             var creatingPath = ToCreatingPath(output);
@@ -30,13 +57,16 @@ namespace GerberViewer.Stitching.Stitching
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var items = BuildItems(images, poses);
-                if (items.Count == 0) throw new InvalidOperationException("No stitchable global transforms to stitch.");
+                if (items.Count == 0) 
+                    throw new InvalidOperationException("No stitchable global transforms to stitch.");
                 var bounds = CalculateBounds(items.Select(x => Tuple.Create(x.Image, x.Pose.GlobalPose)).ToList());
                 var width = Math.Max(1, (int)Math.Ceiling(bounds.Width));
                 var height = Math.Max(1, (int)Math.Ceiling(bounds.Height));
                 var bytesPerPixel = options.ForceGray8Output ? 1 : 3;
                 var selection = SelectTiffOutput(options.TiffMode, width, height, bytesPerPixel);
-                if (options.TiffMode == TiffMode.StandardTiff && selection.EstimatedBytes > 0xF0000000L) throw new InvalidOperationException("Standard TIFF selected for an output estimated beyond the standard TIFF limit.");
+                if (options.TiffMode == TiffMode.StandardTiff && 
+                    selection.EstimatedBytes > 0xF0000000L) 
+                    throw new InvalidOperationException("Standard TIFF selected for an output estimated beyond the standard TIFF limit.");
                 if (selection.RequiresBigTiff) throw new NotSupportedException("BigTIFF output is required by size/configuration, but this writer does not claim BigTIFF support because it uses System.Drawing TIFF save.");
                 EnsureDirectory(creatingPath);
                 if (options.StitchingEngine == StitchingEngine.HalconProjectiveMosaic)
@@ -88,13 +118,15 @@ namespace GerberViewer.Stitching.Stitching
             finally
             {
                 Directory.Delete(creatingPath, true);
+                cancellationToken.ThrowIfCancellationRequested();
             }
         }
 
 
         private static void StitchToHalconMosaic(IList<StitchItem> items, string path, CancellationToken cancellationToken)
         {
-            if (items == null || items.Count == 0) throw new ArgumentException("At least one stitch item is required.", "items");
+            if (items == null || items.Count == 0) 
+                throw new ArgumentException("At least one stitch item is required.", "items");
             HObject images = null;
             HObject mosaic = null;
             try
@@ -142,31 +174,60 @@ namespace GerberViewer.Stitching.Stitching
             }
             finally
             {
-                if (mosaic != null && mosaic.IsInitialized()) mosaic.Dispose();
-                if (images != null && images.IsInitialized()) images.Dispose();
+                if (mosaic != null && mosaic.IsInitialized()) 
+                    mosaic.Dispose();
+                if (images != null && images.IsInitialized()) 
+                    images.Dispose();
             }
         }
 
         private static void WriteHalconImage(string path, HObject image)
         {
             EnsureDirectory(path);
+            // TODO Create a static function to check size of image to choose extension output is BigTiff/Tiff/PNG
             var ext = Path.GetExtension(path).ToLowerInvariant();
-            var format = ext == ".tif" || ext == ".tiff" ? "tiff" : ext.TrimStart('.');
-            HOperatorSet.WriteImage(image, format, 0, path);
+            //var format = ext == ".tif" || ext == ".tiff" ? "tiff" : ext.TrimStart('.');
+            var format = "bigtiff none";
+            HOperatorSet.WriteImage(image, new HTuple(format), new HTuple(0), new HTuple(path));
         }
 
-        private static double[] ToHalconProjective(double[,] h)
+        public static double[] ToHalconProjective(double[,] h)
         {
-            return new[] { h[0, 0], h[0, 1], h[0, 2], h[1, 0], h[1, 1], h[1, 2], 0d, 0d, 1d };
+            if (h == null) throw new ArgumentNullException("h");
+            if (h.GetLength(0) != 3 || h.GetLength(1) != 3) throw new ArgumentException("Projective transform must be a 3x3 matrix.", "h");
+
+            // The canonical stitching transform uses OpenCV/image coordinates:
+            //   x/column' = h00*x + h01*y + h02
+            //   y/row'    = h10*x + h11*y + h12
+            // HALCON projective mosaic matrices are expressed in row/column order.
+            // Convert by sandwiching the canonical matrix with the row/column swap so
+            // HALCON receives row/column coefficients instead of accidentally treating
+            // x as row and y as column.
+            return new[]
+            {
+                h[1, 1], h[1, 0], h[1, 2],
+                h[0, 1], h[0, 0], h[0, 2],
+                h[2, 1], h[2, 0], h[2, 2]
+            };
         }
 
         private static double[,] InvertAffine(double[,] h)
         {
             var det = h[0, 0] * h[1, 1] - h[0, 1] * h[1, 0];
-            if (Math.Abs(det) < 1e-12) throw new InvalidOperationException("Cannot invert singular affine transform for HALCON mosaic stitching.");
-            var a = h[1, 1] / det; var b = -h[0, 1] / det; var d = -h[1, 0] / det; var e = h[0, 0] / det;
-            var c = -(a * h[0, 2] + b * h[1, 2]); var f = -(d * h[0, 2] + e * h[1, 2]);
-            return new[,] { { a, b, c }, { d, e, f }, { 0d, 0d, 1d } };
+            if (Math.Abs(det) < 1e-12) 
+                throw new InvalidOperationException("Cannot invert singular affine transform for HALCON mosaic stitching.");
+            var a = h[1, 1] / det; 
+            var b = -h[0, 1] / det; 
+            var d = -h[1, 0] / det; 
+            var e = h[0, 0] / det;
+            var c = -(a * h[0, 2] + b * h[1, 2]); 
+            var f = -(d * h[0, 2] + e * h[1, 2]);
+            return new[,] 
+            { 
+                { a, b, c }, 
+                { d, e, f }, 
+                { 0d, 0d, 1d } 
+            };
         }
 
         private static double[,] MultiplyAffine(double[,] a, double[,] b)
@@ -276,7 +337,8 @@ namespace GerberViewer.Stitching.Stitching
 
         private Mat LoadForStitch(string path, bool forceGray8)
         {
-            using (var bitmap = new Bitmap(path)) return _imageInterop.ToMatCopy(bitmap, forceGray8 ? InteropPixelFormat.Mono8 : InteropPixelFormat.Bgr8);
+            using (var bitmap = new Bitmap(path)) 
+                return _imageInterop.ToMatCopy(bitmap, forceGray8 ? InteropPixelFormat.Mono8 : InteropPixelFormat.Bgr8);
         }
 
         private static Mat ToCanvasWarp(double[,] transform, RectangleF bounds)
@@ -287,7 +349,9 @@ namespace GerberViewer.Stitching.Stitching
             return warp;
         }
 
-        private static IList<StitchItem> BuildItems(IList<CapturedImageInfo> images, IList<TileWorkflowState> poses)
+        private static IList<StitchItem> BuildItems(
+            IList<CapturedImageInfo> images, 
+            IList<TileWorkflowState> poses)
         {
             var imageByOrder = images.ToDictionary(i => i.OrderIndex);
             var result = new List<StitchItem>();
@@ -329,13 +393,27 @@ namespace GerberViewer.Stitching.Stitching
             return new TiffOutputSelection(bytes > 0xF0000000L || width > 65500 || height > 65500, bytes, "Auto selection from dimensions and byte count.");
         }
 
-        public static bool SelectBigTiff(TiffMode mode, int width, int height, int bytesPerPixel) { return SelectTiffOutput(mode, width, height, bytesPerPixel).RequiresBigTiff; }
-        public static long EstimateByteCount(int width, int height, int bytesPerPixel) { return (long)Math.Max(0, width) * Math.Max(0, height) * Math.Max(1, bytesPerPixel); }
-        public static string NormalizeTiffPath(string path) { if (string.IsNullOrWhiteSpace(path)) path = Path.Combine(Environment.CurrentDirectory, "stitched.tif"); var ext = Path.GetExtension(path).ToLowerInvariant(); if (ext != ".tif" && ext != ".tiff") path = Path.ChangeExtension(path, ".tif"); return path; }
+        public static bool SelectBigTiff(TiffMode mode, int width, int height, int bytesPerPixel) 
+        { return SelectTiffOutput(mode, width, height, bytesPerPixel).RequiresBigTiff; 
+        }
+        public static long EstimateByteCount(int width, int height, int bytesPerPixel) 
+        { 
+            return (long)Math.Max(0, width) * Math.Max(0, height) * Math.Max(1, bytesPerPixel); 
+        }
+        public static string NormalizeTiffPath(string path) 
+        { 
+            if (string.IsNullOrWhiteSpace(path)) 
+                path = Path.Combine(Environment.CurrentDirectory, "stitched.tiff"); 
+            var ext = Path.GetExtension(path).ToLowerInvariant(); 
+            if (ext != ".tif" && ext != ".tiff") 
+                path = Path.ChangeExtension(path, ".tif"); 
+            return path; 
+        }
 
         private static void SaveStandardTiff(Mat image, string path)
         {
-            if (!Cv2.ImWrite(path, image)) throw new IOException("OpenCV failed to write stitched TIFF: " + path);
+            if (!Cv2.ImWrite(path, image)) 
+                throw new IOException("OpenCV failed to write stitched TIFF: " + path);
         }
 
         private static Bitmap MakePreview(Mat src, double maxPreviewMegapixels)
@@ -351,9 +429,11 @@ namespace GerberViewer.Stitching.Stitching
 
         private static void ReopenAndValidate(string path, int width, int height)
         {
-            if (!File.Exists(path)) throw new IOException("Stitched output was not written: " + path);
+            if (!File.Exists(path)) 
+                throw new IOException("Stitched output was not written: " + path);
             var info = new FileInfo(path);
-            if (info.Length <= 0) throw new IOException("Stitched output was empty: " + path);
+            if (info.Length <= 0) 
+                throw new IOException("Stitched output was empty: " + path);
         }
 
         private static void Publish(string creatingPath, string output)
@@ -363,14 +443,35 @@ namespace GerberViewer.Stitching.Stitching
             File.Move(creatingPath, output);
         }
 
-        private static void CleanupCreating(string creatingPath) { if (!string.IsNullOrWhiteSpace(creatingPath) && File.Exists(creatingPath)) File.Delete(creatingPath); }
-        private static void EnsureDirectory(string path) { var dir = Path.GetDirectoryName(path); if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir); }
-        private static string ToCreatingPath(string output) { var dir = Path.GetDirectoryName(output); var file = Path.GetFileName(output); return Path.Combine(string.IsNullOrWhiteSpace(dir) ? Environment.CurrentDirectory : dir, ".creating", file); }
-        private static System.Drawing.Size ImageSize(string path) { using (var bitmap = new Bitmap(path)) return bitmap.Size; }
+        private static void CleanupCreating(string creatingPath) 
+        { 
+            if (!string.IsNullOrWhiteSpace(creatingPath) && File.Exists(creatingPath)) 
+                File.Delete(creatingPath); 
+        }
+        private static void EnsureDirectory(string path) 
+        { 
+            var dir = Path.GetDirectoryName(path); 
+            if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir)) 
+                Directory.CreateDirectory(dir); }
+        private static string ToCreatingPath(string output) 
+        { 
+            var dir = Path.GetDirectoryName(output); 
+            var file = Path.GetFileName(output); 
+            return Path.Combine(string.IsNullOrWhiteSpace(dir) ? Environment.CurrentDirectory : dir, ".creating", file); 
+        }
+        private static System.Drawing.Size ImageSize(string path) 
+        { 
+            using (var bitmap = new Bitmap(path)) 
+                return bitmap.Size; 
+        }
 
         private sealed class StitchItem
         {
-            public StitchItem(CapturedImageInfo image, TileWorkflowState pose) { Image = image; Pose = pose; }
+            public StitchItem(CapturedImageInfo image, TileWorkflowState pose) 
+            { 
+                Image = image; 
+                Pose = pose; 
+            }
             public CapturedImageInfo Image { get; private set; }
             public TileWorkflowState Pose { get; private set; }
         }
