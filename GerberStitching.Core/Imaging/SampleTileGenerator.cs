@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using GerberViewer.Stitching.Configuration;
+using GerberViewer.Stitching.Matching;
 using GerberViewer.Stitching.Models;
 using ConfigGerberSampleConfig = GerberViewer.Stitching.Configuration.GerberSampleConfig;
 using HalconDotNet;
@@ -62,11 +63,15 @@ namespace GerberViewer.Stitching.Imaging
                         tile.Column, 
                         tile.OrderIndex) + ExtensionFor(run.ConfigSnapshot.OutputFormat);
                     var path = Path.Combine(tilesDir, fileName);
+                    var baseName = Path.GetFileNameWithoutExtension(fileName);
+                    var modelPath = Path.Combine(tilesDir, baseName + ".ncm");
                     using (var cropped = Crop(run.ProcessedImage, tile))
                     {
+                        WriteNccModel(cropped, modelPath);
                         HOperatorSet.WriteImage(cropped, HalconFormatFor(run.ConfigSnapshot.OutputFormat), 0, path);
                     }
                     VerifyImageReadable(path);
+                    VerifyNccModelReadable(modelPath);
                     progress?.Report(new SampleCropProgress 
                     { 
                         Completed = tile.OrderIndex + 1, 
@@ -131,6 +136,9 @@ namespace GerberViewer.Stitching.Imaging
                 var path = Path.Combine(tempRoot, "tiles", fileName);
                 if (!File.Exists(path)) 
                     throw new FileNotFoundException("Generated tile is missing before publication: " + path, path);
+                var modelPath = Path.Combine(tempRoot, "tiles", Path.GetFileNameWithoutExtension(fileName) + ".ncm");
+                if (!File.Exists(modelPath))
+                    throw new FileNotFoundException("Generated HALCON NCC model is missing before publication: " + modelPath, modelPath);
             }
         }
 
@@ -153,8 +161,57 @@ namespace GerberViewer.Stitching.Imaging
                 PreprocessMode = run.PreprocessMetadata == null ? null : run.PreprocessMetadata.Mode.ToString(),
                 ProcessedChannelCount = CountChannels(run.ProcessedImage),
                 ProcessedBitDepth = BitDepth(run.ProcessedImage),
-                Tiles = run.TilesByOrder.Select(t => new SampleTileInfo { OrderIndex = t.OrderIndex, Row = t.Row, Column = t.Column, ExpectedPath = Path.Combine(finalRoot, "tiles", FormatName(run.ConfigSnapshot.TileNamePattern, t.Row, t.Column, t.OrderIndex) + ExtensionFor(run.ConfigSnapshot.OutputFormat)), ExpectedX = t.Rectangle.X, ExpectedY = t.Rectangle.Y, Width = t.Rectangle.Width, Height = t.Rectangle.Height }).ToList()
+                Tiles = run.TilesByOrder.Select(t =>
+                {
+                    var baseName = FormatName(run.ConfigSnapshot.TileNamePattern, t.Row, t.Column, t.OrderIndex);
+                    return new SampleTileInfo
+                    {
+                        OrderIndex = t.OrderIndex,
+                        Row = t.Row,
+                        Column = t.Column,
+                        ExpectedPath = Path.Combine(finalRoot, "tiles", baseName + ExtensionFor(run.ConfigSnapshot.OutputFormat)),
+                        NccModelPath = Path.Combine(finalRoot, "tiles", baseName + ".ncm"),
+                        ExpectedX = t.Rectangle.X,
+                        ExpectedY = t.Rectangle.Y,
+                        Width = t.Rectangle.Width,
+                        Height = t.Rectangle.Height
+                    };
+                }).ToList()
             };
+        }
+
+        private static void WriteNccModel(HObject cropped, string modelPath)
+        {
+            HTuple modelId = null;
+            var options = new MatcherOptions();
+            try
+            {
+                HOperatorSet.CreateNccModel(cropped, options.NccNumLevels, options.NccAngleStartRad, options.NccAngleExtentRad, options.NccAngleStepRad, options.NccMetric, out modelId);
+                HOperatorSet.SetNccModelOrigin(modelId, 0.0, 0.0);
+                HOperatorSet.WriteNccModel(modelId, modelPath);
+            }
+            finally
+            {
+                if (modelId != null)
+                {
+                    HOperatorSet.ClearNccModel(modelId);
+                    modelId.Dispose();
+                }
+            }
+        }
+
+        private static void VerifyNccModelReadable(string path)
+        {
+            HTuple modelId = null;
+            try { HOperatorSet.ReadNccModel(path, out modelId); }
+            finally
+            {
+                if (modelId != null)
+                {
+                    HOperatorSet.ClearNccModel(modelId);
+                    modelId.Dispose();
+                }
+            }
         }
 
         private static void WriteProcessedSample(string path, HObject processedImage)

@@ -24,6 +24,7 @@ namespace GerberViewer.Stitching.Matching
         public MatchPurpose Purpose { get; set; }
         public int? OrderIndex { get; set; }
         public string SampleTileId { get; set; }
+        public string ReferenceNccModelPath { get; set; }
         public string Context { get; set; }
     }
 }

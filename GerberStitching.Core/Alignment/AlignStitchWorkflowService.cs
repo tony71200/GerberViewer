@@ -149,6 +149,7 @@ namespace GerberViewer.Stitching.Alignment
                 var ctx = new SampleAlignmentContext
                 {
                     SampleTileId = cap.OrderIndex.ToString(),
+                    SampleNccModelPath = tile.NccModelPath,
                     SampleImage = sample,
                     CapturedImage = img,
                     ExpectedCapturedToSampleTransform = Homography.Identity(),

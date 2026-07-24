@@ -79,6 +79,7 @@ namespace GerberViewer.Stitching.Alignment
     public sealed class SampleAlignmentContext
     {
         public string SampleTileId { get; set; }
+        public string SampleNccModelPath { get; set; }
         public Bitmap SampleImage { get; set; }
         public Bitmap CapturedImage { get; set; }
         public double[,] ExpectedCapturedToSampleTransform { get; set; }
