@@ -58,7 +58,7 @@
   <h2>GerberStitching.Core/Alignment</h2>
   <ul>
     <li><code>ISampleAligner</code>: interface align sample tile, trả <code>SampleAlignmentResult</code>; direction transform chuẩn là <code>Captured → Sample</code>.</li>
-    <li><code>SampleAlignmentContext</code>: input alignment gồm <code>SampleTileId</code>, <code>SampleImage</code>, <code>CapturedImage</code>, <code>ExpectedCapturedToSampleTransform</code>, <code>InitialCapturedToSampleTransform</code> và <code>Options</code>; ảnh gốc không bị overwrite.</li>
+    <li><code>SampleAlignmentContext</code>: input alignment gồm <code>SampleTileId</code>, <code>SampleNccModelPath</code>, <code>SampleImage</code>, <code>CapturedImage</code>, <code>ExpectedCapturedToSampleTransform</code>, <code>InitialCapturedToSampleTransform</code> và <code>Options</code>; ảnh gốc không bị overwrite.</li>
     <li><code>SampleAlignmentResult</code>: result gồm <code>Success</code>, <code>CapturedToSampleTransform</code> 3x3 <code>CV_64F</code>, <code>NccScore</code>, <code>EccCorrelation</code>, rotation/translation/scale, <code>OverlapRatio</code>, <code>Method</code>, <code>PreprocessingVariant</code>, <code>RejectionReason</code>, <code>Warning</code> và optional <code>DiagnosticImages</code>.</li>
     <li><code>SampleAlignmentOptions</code>: thresholds/config gồm <code>NccMinScore</code>, <code>EccMinCorrelation</code>, <code>MinOverlapRatio</code>, <code>MaxTranslationPixels</code>, <code>MaxAbsRotationDeg</code>, <code>MinScale</code>, <code>MaxScale</code>, <code>AllowNccOnlyAcceptance</code>, <code>AllowEccFromExpectedWhenNccFails</code>, <code>PyramidLevels</code>, <code>EccIterations</code>, <code>EccEpsilon</code> và <code>Preprocessing</code>.</li>
     <li><code>PreprocessingOptions</code>: modality-aware pipeline gồm grayscale conversion, <code>ContrastNormalization</code>, polarity sample/captured (<code>PolarityMode</code>), threshold fixed/Otsu/adaptive (<code>ThresholdMode</code>), Sobel/Canny/HALCON-equivalent edges (<code>EdgePreparationMode</code>), Gerber content mask, normalized size và diagnostic image flag.</li>
@@ -215,8 +215,8 @@
   <li><code>PreparedSampleRun.Layout</code> / <code>TilesByOrder</code>: single source of truth for preview rectangles, crop rectangles, filenames, and manifest tiles.</li>
   <li><code>ImagePreprocessMetadata</code>: records preprocess mode, keep-aspect flag, invert flag, and processed-source coordinate space.</li>
   <li><code>SampleCropProgress.OrderIndex</code> and <code>State</code>: progress now reports exact tile identity instead of inferring from completed count.</li>
-  <li><code>SampleManifest.ManifestVersion</code>: current canonical contract version, starting at <code>1</code>.</li>
-  <li><code>SampleTileInfo.ExpectedPath</code>, <code>ExpectedX</code>, <code>ExpectedY</code>, <code>Width</code>, <code>Height</code>: deterministic processed-source tile identity consumed by future Tab 3.</li>
+  <li><code>SampleManifest.ManifestVersion</code>: current canonical contract version is <code>3</code>; v3 requires per-tile HALCON NCC model metadata while older manifests remain readable for compatibility.</li>
+  <li><code>SampleTileInfo.ExpectedPath</code>, <code>NccModelPath</code>, <code>ExpectedX</code>, <code>ExpectedY</code>, <code>Width</code>, <code>Height</code>: deterministic processed-source tile identity and reusable HALCON NCC model metadata consumed by Tab 3; TIFF/BigTIFF tile paths use <code>.tiff</code> so the path matches HALCON TIFF output.</li>
 </ul>
 <h2>Tab 2 compile-fix variables/aliases</h2>
 <ul>
@@ -229,7 +229,7 @@
 <h2>Tab 2 publication validation variables</h2>
 <ul>
   <li><code>manifestPathInTemp</code>: temporary manifest file written before publication with JSON/schema validation only because canonical <code>ExpectedPath</code> points to the final run directory.</li>
-  <li><code>ValidateTileFilesInTemp</code>: verifies every generated tile exists in the current <code>.creating_&lt;runId&gt;</code> directory before publication.</li>
+  <li><code>ValidateTileFilesInTemp</code>: verifies every generated tile image and corresponding HALCON NCC <code>.ncm</code> model exist in the current <code>.creating_&lt;runId&gt;</code> directory before publication.</li>
   <li><code>finalValidation</code>: readback validation after <code>Directory.Move</code>, when final <code>ExpectedPath</code> files exist.</li>
 </ul>
 <h2>Tab 2 overlay and overlap variables</h2>
@@ -248,6 +248,26 @@
   <li><code>CurrentZoom</code>: inherited viewer zoom value used by <code>RenderImageOverlay</code> to scale overlay geometry.</li>
   <li><code>lineWidth</code>: image-coordinate rectangle and label-outline thickness calculated from <code>CurrentZoom</code> but capped to avoid generating oversized overlay regions at low zoom.</li>
   <li><code>labelSize</code>: image-coordinate normal-font order-number size calculated from <code>CurrentZoom</code> but capped before GDI+ mask creation to prevent preview hangs.</li>
+</ul>
+
+<h2>Tab 2 tile output format variables</h2>
+<ul>
+  <li><code>ExtensionFor</code>: maps <code>SampleOutputFormat.Tiff</code> and <code>SampleOutputFormat.BigTiff</code> to <code>.tiff</code>, <code>Png</code> to <code>.png</code>, <code>Bmp</code> to <code>.bmp</code>, and <code>Jpeg</code> to <code>.jpg</code>.</li>
+  <li><code>HalconFormatFor</code>: remains the HALCON writer-format mapping (<code>tiff</code>, <code>tiff none</code>, <code>png</code>, <code>bmp</code>, <code>jpeg</code>); filename extension and HALCON format must stay consistent before <code>VerifyImageReadable</code> calls <code>read_image</code>.</li>
+</ul>
+
+<h2>Tab 2 NCC model output variables</h2>
+<ul>
+  <li><code>NccModelPath</code>: per-tile manifest field pointing to <code>tiles/&lt;basename&gt;.ncm</code>; required for manifest v3 validation when files are required.</li>
+  <li><code>SampleTileGenerator.WriteNccModel</code>: creates a HALCON NCC model from the cropped tile using <code>MatcherOptions</code> angle/level/metric defaults, writes it via <code>HOperatorSet.WriteNccModel</code>, and clears the model handle in <code>finally</code>.</li>
+  <li><code>VerifyNccModelReadable</code>: readback check using <code>HOperatorSet.ReadNccModel</code> followed by <code>HOperatorSet.ClearNccModel</code> to validate the published model can be consumed by Tab 3.</li>
+</ul>
+
+<h2>Tab 3 NCC model consumption variables</h2>
+<ul>
+  <li><code>MatchRequest.ReferenceNccModelPath</code>: optional path to a prebuilt HALCON NCC model for the reference/sample tile; if absent or unreadable, the matcher keeps the compatibility fallback and creates a model from <code>ReferenceImage</code>.</li>
+  <li><code>NCC_HalconMatcher.GetOrCreateModel</code>: loads <code>ReferenceNccModelPath</code> with <code>HOperatorSet.ReadNccModel</code> when available, otherwise calls <code>CreateNccModel</code> from the reference image.</li>
+  <li><code>NCC_HalconMatcher.BuildCacheKey</code>: cache key includes sample tile identity, preprocessing variant, NCC options, reference image metadata, normalized model path, and model file last-write/size stamp to avoid stale model reuse.</li>
 </ul>
 
 <h2>Tab 3 align/stitch workflow variables</h2>

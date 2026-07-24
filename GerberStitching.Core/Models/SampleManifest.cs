@@ -9,7 +9,7 @@ namespace GerberViewer.Stitching.Models
     [DataContract]
     public sealed class SampleManifest
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
         [DataMember(Order = 1)] public int ManifestVersion { get; set; }
         [DataMember(Order = 2)] public string RootDirectory { get; set; }
         [DataMember(Order = 3)] public string SourceRasterPath { get; set; }
@@ -39,6 +39,7 @@ namespace GerberViewer.Stitching.Models
         [DataMember(Order = 6)] public int ExpectedY { get; set; }
         [DataMember(Order = 7)] public int Width { get; set; }
         [DataMember(Order = 8)] public int Height { get; set; }
+        [DataMember(Order = 9, EmitDefaultValue = false)] public string NccModelPath { get; set; }
     }
 
     public sealed class SampleManifestValidationResult
@@ -138,6 +139,13 @@ namespace GerberViewer.Stitching.Models
                     result.Errors.Add("ExpectedPath missing at order " + t.OrderIndex + ".");
                 else if (requireFiles && !File.Exists(t.ExpectedPath)) 
                     result.Errors.Add("ExpectedPath unreadable/missing at order " + t.OrderIndex + ": " + t.ExpectedPath);
+                if (manifest.ManifestVersion >= 3)
+                {
+                    if (string.IsNullOrWhiteSpace(t.NccModelPath))
+                        result.Errors.Add("NccModelPath missing at order " + t.OrderIndex + ".");
+                    else if (requireFiles && !File.Exists(t.NccModelPath))
+                        result.Errors.Add("NccModelPath unreadable/missing at order " + t.OrderIndex + ": " + t.NccModelPath);
+                }
             }
             for (int i = 0; i < manifest.Tiles.Count; i++) 
                 if (!orders.Contains(i)) 

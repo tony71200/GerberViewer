@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 #if DEBUG
@@ -43,8 +44,7 @@ namespace GerberViewer.Stitching.Matching
                 return WithTime(MatchResult.Failed(MatcherName, MatchFailureReason.Cancelled, "HALCON NCC was cancelled before start."), sw);
             var invalid = _validator.ValidateRequest(request, MatcherName);
             if (invalid != null) return WithTime(invalid, sw);
-            //var options = request.Options ?? new MatcherOptions();
-            var options = new MatcherOptions();
+            var options = request.Options ?? new MatcherOptions();
             HTuple row = null;
             HTuple column = null;
             HTuple angle = null;
@@ -58,7 +58,7 @@ namespace GerberViewer.Stitching.Matching
 #if false
                     ShowDebugInputDialog(request, options, key);
 #endif
-                    var entry = GetOrCreateModel(key, request.ReferenceImage, options, cancellationToken);
+                    var entry = GetOrCreateModel(key, request, options, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
                     HOperatorSet.FindNccModel(movingHObject, entry.ModelId, options.NccAngleStartRad, options.NccAngleExtentRad, options.NccMinScore, options.NccMaxMatches, options.NccMaxOverlap, options.NccSubPixel,
                         options.NccNumLevels, out row, out column, out angle, out score);
@@ -136,7 +136,7 @@ namespace GerberViewer.Stitching.Matching
             }
         }
 
-        private NccModelEntry GetOrCreateModel(string key, Mat referenceImage, MatcherOptions options, CancellationToken cancellationToken)
+        private NccModelEntry GetOrCreateModel(string key, MatchRequest request, MatcherOptions options, CancellationToken cancellationToken)
         {
             lock (_syncRoot)
             {
@@ -152,7 +152,26 @@ namespace GerberViewer.Stitching.Matching
             HTuple modelId = null;
             try
             {
-                using (var referenceHObject = _imageInterop.ToHObjectCopy(referenceImage, InteropPixelFormat.Mono8))
+                if (HasReadableModelPath(request.ReferenceNccModelPath))
+                {
+                    HOperatorSet.ReadNccModel(request.ReferenceNccModelPath, out modelId);
+                    var loadedEntry = new NccModelEntry(modelId);
+                    modelId = null;
+                    lock (_syncRoot)
+                    {
+                        NccModelEntry race;
+                        if (_modelCache.TryGetValue(key, out race))
+                        {
+                            loadedEntry.ClearOnce();
+                            race.UseCount++;
+                            return race;
+                        }
+                        _modelCache.Add(key, loadedEntry);
+                        return loadedEntry;
+                    }
+                }
+
+                using (var referenceHObject = _imageInterop.ToHObjectCopy(request.ReferenceImage, InteropPixelFormat.Mono8))
                 {
                     HOperatorSet.CreateNccModel(referenceHObject, options.NccNumLevels, options.NccAngleStartRad, options.NccAngleExtentRad, options.NccAngleStepRad, options.NccMetric, out modelId);
                     HOperatorSet.SetNccModelOrigin(modelId, 0.0, 0.0);
@@ -182,8 +201,12 @@ namespace GerberViewer.Stitching.Matching
         {
             var sampleTileId = !string.IsNullOrWhiteSpace(request.SampleTileId) ? request.SampleTileId : (request.OrderIndex.HasValue ? request.OrderIndex.Value.ToString(CultureInfo.InvariantCulture) : "__unspecified_tile__");
             var preprocessingVariant = string.IsNullOrWhiteSpace(options.PreprocessingVariant) ? "default" : options.PreprocessingVariant;
+            var modelPath = NormalizeModelPath(request.ReferenceNccModelPath);
+            var modelStamp = ModelStamp(modelPath);
             return string.Join("|", new[] {
                 "SampleTileId=" + sampleTileId,
+                "ReferenceNccModelPath=" + (modelPath ?? "__none__"),
+                "ReferenceNccModelStamp=" + modelStamp,
                 "PreprocessingVariant=" + preprocessingVariant,
                 "Rows=" + request.ReferenceImage.Rows.ToString(CultureInfo.InvariantCulture),
                 "Cols=" + request.ReferenceImage.Cols.ToString(CultureInfo.InvariantCulture),
@@ -196,6 +219,25 @@ namespace GerberViewer.Stitching.Matching
                 "Metric=" + options.NccMetric,
                 "NumLevels=" + options.NccNumLevels.ToString(CultureInfo.InvariantCulture)
             });
+        }
+
+        private static bool HasReadableModelPath(string modelPath)
+        {
+            return !string.IsNullOrWhiteSpace(modelPath) && File.Exists(modelPath);
+        }
+
+        private static string NormalizeModelPath(string modelPath)
+        {
+            if (string.IsNullOrWhiteSpace(modelPath)) return null;
+            try { return Path.GetFullPath(modelPath); }
+            catch { return modelPath; }
+        }
+
+        private static string ModelStamp(string modelPath)
+        {
+            if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath)) return "__not_available__";
+            var info = new FileInfo(modelPath);
+            return info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture) + ":" + info.Length.ToString(CultureInfo.InvariantCulture);
         }
 
 

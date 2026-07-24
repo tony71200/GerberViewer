@@ -121,6 +121,7 @@ namespace GerberViewer.Stitching.Alignment
                         Options = ToMatcherOptions(options, candidate.Variant),
                         Purpose = MatchPurpose.CapturedToSample,
                         SampleTileId = context.SampleTileId,
+                        ReferenceNccModelPath = context.SampleNccModelPath,
                         OrderIndex = ParseOrderIndex(context.SampleTileId),
                         Context = "Direct camera-to-sample alignment"
                     };
