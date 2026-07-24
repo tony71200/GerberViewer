@@ -5,14 +5,25 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using GerberViewer.Stitching.Models;
+using HalconDotNet;
 using OpenCvSharp;
 
 namespace GerberViewer.Stitching.Comparison
 {
+    /// <summary>
+    /// Important code for get the sample gerber
+    /// </summary>
     public sealed class SampleComparisonService
     {
         private const string CoordinateSpace = "ProcessedSampleGlobalPixels";
-
+        /// <summary>
+        /// After stitching, compare image.
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentException"></exception>
         public SampleComparisonResult Generate(SampleComparisonRequest request, CancellationToken cancellationToken)
         {
             if (request == null) throw new ArgumentNullException("request");
@@ -33,31 +44,42 @@ namespace GerberViewer.Stitching.Comparison
             }
             if (!mapping.IsAuthoritative) result.Warnings.Add("Authoritative comparison blocked: " + mapping.Reason + " Generated products are non-authoritative visual previews only.");
 
-            using (var sample = LoadSampleInProcessedSpace(request.Manifest, mapping))
-            using (var stitched = LoadColor(request.StitchedImagePath))
-            using (var sampleForComparison = PrepareComparable(sample, stitched, mapping, result.Warnings))
-            using (var stitchedForComparison = PrepareComparable(stitched, sampleForComparison, mapping, result.Warnings))
-            using (var samplePreview = MakePreview(sampleForComparison, request.MaxPreviewMegapixels))
-            using (var stitchedPreview = MakePreview(stitchedForComparison, request.MaxPreviewMegapixels))
-            using (var overlay = AlphaOverlay(samplePreview, stitchedPreview, request.Alpha))
-            using (var difference = AbsoluteDifference(samplePreview, stitchedPreview))
-            using (var edge = EdgeOverlay(samplePreview, stitchedPreview))
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                result.SamplePreviewPath = Path.Combine(request.OutputDirectory, "sample_reference_preview.png");
-                result.StitchedPreviewPath = Path.Combine(request.OutputDirectory, "stitched_preview.png");
-                result.AlphaOverlayPath = Path.Combine(request.OutputDirectory, "overlay_comparison.png");
-                result.AbsoluteDifferencePath = Path.Combine(request.OutputDirectory, "difference_comparison.png");
-                result.EdgeOverlayPath = Path.Combine(request.OutputDirectory, "edge_comparison.png");
-                SavePng(samplePreview, result.SamplePreviewPath);
-                SavePng(stitchedPreview, result.StitchedPreviewPath);
-                SavePng(overlay, result.AlphaOverlayPath);
-                SavePng(difference, result.AbsoluteDifferencePath);
-                SavePng(edge, result.EdgeOverlayPath);
-                result.Metrics = ComputeMetrics(sampleForComparison, stitchedForComparison);
-                result.ProductsGenerated = true;
-                WriteMetadata(result, request, mapping, result.Metrics);
-                return result;
+                using (var sample = LoadSampleInProcessedSpace(request.Manifest, mapping))
+                using (var stitched = LoadColor(request.StitchedImagePath))
+                using (var sampleForComparison = PrepareComparable(sample, stitched, mapping, result.Warnings))
+                using (var stitchedForComparison = PrepareComparable(stitched, sampleForComparison, mapping, result.Warnings))
+                using (var samplePreview = MakePreview(sampleForComparison, request.MaxPreviewMegapixels))
+                using (var stitchedPreview = MakePreview(stitchedForComparison, request.MaxPreviewMegapixels))
+                using (var overlay = AlphaOverlay(samplePreview, stitchedPreview, request.Alpha))
+                using (var difference = AbsoluteDifference(samplePreview, stitchedPreview))
+                using (var edge = EdgeOverlay(samplePreview, stitchedPreview))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    result.SamplePreviewPath = Path.Combine(request.OutputDirectory, "sample_reference_preview.png");
+                    result.StitchedPreviewPath = Path.Combine(request.OutputDirectory, "stitched_preview.png");
+                    result.AlphaOverlayPath = Path.Combine(request.OutputDirectory, "overlay_comparison.png");
+                    result.AbsoluteDifferencePath = Path.Combine(request.OutputDirectory, "difference_comparison.png");
+                    result.EdgeOverlayPath = Path.Combine(request.OutputDirectory, "edge_comparison.png");
+                    SavePng(samplePreview, result.SamplePreviewPath);
+                    SavePng(stitchedPreview, result.StitchedPreviewPath);
+                    SavePng(overlay, result.AlphaOverlayPath);
+                    SavePng(difference, result.AbsoluteDifferencePath);
+                    SavePng(edge, result.EdgeOverlayPath);
+                    result.Metrics = ComputeMetrics(sampleForComparison, stitchedForComparison);
+                    result.ProductsGenerated = true;
+                    WriteMetadata(result, request, mapping, result.Metrics);
+                    return result;
+                }
+            }
+            catch (OpenCVException ex)
+            {
+                return GenerateHalconPreviewOnly(request, mapping, result, "OpenCV comparison skipped for oversized image: " + ex.Message, cancellationToken);
+            }
+            catch (ArgumentException ex)
+            {
+                return GenerateHalconPreviewOnly(request, mapping, result, "Bitmap/OpenCV comparison skipped for oversized image: " + ex.Message, cancellationToken);
             }
         }
 
@@ -330,6 +352,60 @@ namespace GerberViewer.Stitching.Comparison
             if (!Cv2.ImWrite(path, image)) throw new IOException("Failed to write comparison product: " + path);
         }
 
+        private static SampleComparisonResult GenerateHalconPreviewOnly(
+            SampleComparisonRequest request, 
+            ComparisonMapping mapping, 
+            SampleComparisonResult result, 
+            string reason, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            result.IsAuthoritative = false;
+            result.ProductsGenerated = true;
+            result.Warnings.Add(reason);
+            result.Warnings.Add("Generated HALCON preview-only images because the source is too large for OpenCV full-image comparison.");
+            result.SamplePreviewPath = Path.Combine(request.OutputDirectory, "sample_reference_preview.png");
+            result.StitchedPreviewPath = Path.Combine(request.OutputDirectory, "stitched_preview.png");
+            WriteHalconPreview(mapping.SamplePath, result.SamplePreviewPath, request.MaxPreviewMegapixels, cancellationToken);
+            WriteHalconPreview(request.StitchedImagePath, result.StitchedPreviewPath, request.MaxPreviewMegapixels, cancellationToken);
+            WriteMetadata(result, request, mapping, result.Metrics);
+            return result;
+        }
+
+        private static void WriteHalconPreview(
+            string sourcePath, 
+            string outputPath, 
+            double maxPreviewMegapixels, 
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath)) throw new FileNotFoundException("HALCON preview image not found.", sourcePath);
+            HObject image = null;
+            HObject preview = null;
+            HTuple width = null;
+            HTuple height = null;
+            try
+            {
+                HOperatorSet.ReadImage(out image, sourcePath);
+                cancellationToken.ThrowIfCancellationRequested();
+                HOperatorSet.GetImageSize(image, out width, out height);
+                var w = width.D;
+                var h = height.D;
+                var maxPixels = Math.Max(1.0, maxPreviewMegapixels) * 1000000.0;
+                var scale = Math.Min(1.0, Math.Sqrt(maxPixels / Math.Max(1.0, w * h)));
+                var previewWidth = Math.Max(1, (int)Math.Round(w * scale));
+                var previewHeight = Math.Max(1, (int)Math.Round(h * scale));
+                if (scale >= 0.999) HOperatorSet.CopyObj(image, out preview, 1, -1);
+                else HOperatorSet.ZoomImageSize(image, out preview, previewWidth, previewHeight, "constant");
+                HOperatorSet.WriteImage(preview, "png", 0, outputPath);
+            }
+            finally
+            {
+                if (image != null) image.Dispose();
+                if (preview != null) preview.Dispose();
+                if (width != null) width.Dispose();
+                if (height != null) height.Dispose();
+            }
+        }
+
         private static Mat LoadColor(string path)
         {
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) throw new FileNotFoundException("Comparison image not found.", path);
@@ -360,7 +436,10 @@ namespace GerberViewer.Stitching.Comparison
             return Math.Abs(h[2, 0]) < 1e-12 && Math.Abs(h[2, 1]) < 1e-12 && Math.Abs(h[2, 2] - 1.0) < 1e-12;
         }
 
-        private static double Ratio(double numerator, double denominator) { return denominator <= 0 ? 0 : numerator / denominator; }
+        private static double Ratio(double numerator, double denominator) 
+        { 
+            return denominator <= 0 ? 0 : numerator / denominator; 
+        }
 
         private static void WriteMetadata(SampleComparisonResult result, SampleComparisonRequest request, ComparisonMapping mapping, ComparisonMetrics metrics)
         {

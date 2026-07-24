@@ -28,21 +28,38 @@ namespace GerberViewer.Stitching.Alignment
 
         public AlignStitchWorkflowService(Func<ISampleAligner> alignerFactory, IManualAlignmentProvider manualProvider = null, IMatcherFactory matcherFactory = null)
         {
-            _alignerFactory = alignerFactory ?? (() => new NccThenPyramidEccSampleAligner());
+            _alignerFactory = alignerFactory ?? (() => new HalconNccSampleAligner());
             _manualProvider = manualProvider;
             _matcherFactory = matcherFactory ?? new MatcherFactory();
         }
 
-        public Task<AlignStitchWorkflowResult> RunAsync(AlignStitchConfig config, SampleManifest manifest, IList<CapturedImageInfo> captured, IProgress<WorkflowProgress> progress, CancellationToken cancellationToken)
+        public Task<AlignStitchWorkflowResult> RunAsync(
+            AlignStitchConfig config, 
+            SampleManifest manifest, 
+            IList<CapturedImageInfo> captured, 
+            IProgress<WorkflowProgress> progress, 
+            CancellationToken cancellationToken)
         {
-            return Task.Run(() => RunCore(config ?? new AlignStitchConfig(), manifest, captured, progress, cancellationToken), cancellationToken);
+            return Task.Run(() => RunCore(
+                config ?? new AlignStitchConfig(), 
+                manifest, 
+                captured, 
+                progress, 
+                cancellationToken
+                ), cancellationToken);
         }
 
-        private AlignStitchWorkflowResult RunCore(AlignStitchConfig config, SampleManifest manifest, IList<CapturedImageInfo> captured, IProgress<WorkflowProgress> progress, CancellationToken ct)
+        private AlignStitchWorkflowResult RunCore(
+            AlignStitchConfig config, 
+            SampleManifest manifest, 
+            IList<CapturedImageInfo> captured, 
+            IProgress<WorkflowProgress> progress, 
+            CancellationToken ct)
         {
             ValidateInputs(manifest, captured);
             var report = ProcessingReport.Create(config, manifest);
-            report.Messages.Add("Transform contract: CapturedToSampleTransform maps CapturedImageLocalPixels to SampleTileLocalPixels; GlobalPose maps CapturedImageLocalPixels to ProcessedSampleGlobalPixels; neighbor TargetToAnchorTransform maps target captured pixels to anchor captured pixels.");
+            report.Messages.Add("Stitching engine: " + config.StitchingEngine + " (OpenCV path remains available; HALCON ProjectiveMosaic uses HOperatorSet.GenProjectiveMosaic when selected).");
+            report.Messages.Add("Transform contract: NCC_HalconMatcher returns MovingImage-to-ReferenceImage transforms. Direct alignment warps each captured MovingImage into its reference tile coordinate system, then composes the tile ExpectedX/ExpectedY offset for global stitching.");
             var solved = new Dictionary<int, TileWorkflowState>();
             var tileByOrder = manifest.Tiles.ToDictionary(t => t.OrderIndex);
             var capturedByOrder = captured.ToDictionary(c => c.OrderIndex);
@@ -71,7 +88,8 @@ namespace GerberViewer.Stitching.Alignment
                     solved[cap.OrderIndex] = Recover(config, tileByOrder[cap.OrderIndex], cap, solved, ordered, capturedByOrder, tileByOrder, report, ct, true);
             }
 
-            foreach (var state in solved.Values.OrderBy(v => v.OrderIndex)) report.Poses.Add(state.ToPose());
+            foreach (var state in solved.Values.OrderBy(v => v.OrderIndex)) 
+                report.Poses.Add(state.ToPose());
 
             var alignedCount = solved.Values.Count(v => v.AlignmentSucceeded);
             var stitchableCount = solved.Values.Count(v => v.IsStitchable);
@@ -88,8 +106,21 @@ namespace GerberViewer.Stitching.Alignment
                 report.Warnings.Add("Production output blocked: not every captured image has a verified stitchable alignment pose.");
             else if (!string.IsNullOrWhiteSpace(config.OutputPath))
             {
-                var stitchedPath = Path.Combine(config.OutputPath, "stitched.tif");
-                report.FinalOutputPath = new GlobalTransformStitcher().StitchFromGlobalTransforms(ordered, solved.Values.OrderBy(v => v.OrderIndex).ToList(), new StitchFromGlobalTransformsOptions { OutputPath = stitchedPath, PreviewUpdateInterval = config.PreviewUpdateInterval, MaxPreviewMegapixels = config.MaxPreviewMegapixels, TiffMode = config.TiffMode, EnableBlending = true, BlendMode = StitchBlendMode.WeightedAverage }, null, ct);
+                var stitchedPath = Path.Combine(config.OutputPath, "stitched.tiff");
+                report.FinalOutputPath = new GlobalTransformStitcher().StitchFromGlobalTransforms(
+                    ordered, 
+                    solved.Values.OrderBy(v => v.OrderIndex).ToList(), 
+                    new StitchFromGlobalTransformsOptions 
+                    { 
+                        OutputPath = stitchedPath, 
+                        PreviewUpdateInterval = config.PreviewUpdateInterval, 
+                        MaxPreviewMegapixels = config.MaxPreviewMegapixels, 
+                        TiffMode = config.TiffMode, 
+                        EnableBlending = false, 
+                        ForceGray8Output = true, 
+                        BlendMode = StitchBlendMode.NoBlend, 
+                        StitchingEngine = config.StitchingEngine 
+                    }, null, ct);
             }
             return new AlignStitchWorkflowResult { Report = report, States = solved.Values.OrderBy(v => v.OrderIndex).ToList() };
         }
@@ -99,11 +130,14 @@ namespace GerberViewer.Stitching.Alignment
             var validation = SampleManifestValidator.Validate(manifest, true);
             if (!validation.IsValid) throw new InvalidOperationException("Invalid sample manifest: " + string.Join("; ", validation.Errors));
             var tileByOrder = manifest.Tiles.ToDictionary(t => t.OrderIndex);
-            if (captured == null || captured.Count != manifest.Tiles.Count) throw new InvalidOperationException("Captured image count must equal manifest tile count.");
+            if (captured == null || captured.Count != manifest.Tiles.Count) 
+                throw new InvalidOperationException("Captured image count must equal manifest tile count.");
             foreach (var c in captured)
             {
-                if (!tileByOrder.ContainsKey(c.OrderIndex)) throw new InvalidOperationException("Captured image OrderIndex has no manifest tile: " + c.OrderIndex);
-                if (string.IsNullOrWhiteSpace(c.FilePath) || !File.Exists(c.FilePath)) throw new FileNotFoundException("Captured image missing for OrderIndex " + c.OrderIndex, c.FilePath);
+                if (!tileByOrder.ContainsKey(c.OrderIndex)) 
+                    throw new InvalidOperationException("Captured image OrderIndex has no manifest tile: " + c.OrderIndex);
+                if (string.IsNullOrWhiteSpace(c.FilePath) || !File.Exists(c.FilePath)) 
+                    throw new FileNotFoundException("Captured image missing for OrderIndex " + c.OrderIndex, c.FilePath);
             }
         }
 
@@ -124,14 +158,25 @@ namespace GerberViewer.Stitching.Alignment
                 AddReport(report, cap, r, null);
                 if (r.Success)
                 {
-                    var global = Multiply(Translation(tile.ExpectedX, tile.ExpectedY), r.CapturedToSampleTransform);
+                    var global = Multiply(Translation(tile.ExpectedX, tile.ExpectedY), 
+                        r.CapturedToSampleTransform);
                     return TileWorkflowState.From(cap, global, PoseSource.SampleAlignment, r, null);
                 }
                 return TileWorkflowState.From(cap, null, PoseSource.Failed, r, r.RejectionReason);
             }
         }
 
-        private TileWorkflowState Recover(AlignStitchConfig config, SampleTileInfo tile, CapturedImageInfo cap, Dictionary<int, TileWorkflowState> solved, IList<CapturedImageInfo> ordered, IDictionary<int, CapturedImageInfo> capturedByOrder, IDictionary<int, SampleTileInfo> tileByOrder, ProcessingReport report, CancellationToken ct, bool includeSuccessor)
+        private TileWorkflowState Recover(
+            AlignStitchConfig config, 
+            SampleTileInfo tile, 
+            CapturedImageInfo cap, 
+            Dictionary<int, TileWorkflowState> solved, 
+            IList<CapturedImageInfo> ordered, 
+            IDictionary<int, CapturedImageInfo> capturedByOrder, 
+            IDictionary<int, SampleTileInfo> tileByOrder, 
+            ProcessingReport report, 
+            CancellationToken ct, 
+            bool includeSuccessor)
         {
             if (config.EnableNeighborRecovery)
             {
@@ -160,7 +205,15 @@ namespace GerberViewer.Stitching.Alignment
             return TileWorkflowState.From(cap, null, PoseSource.Failed, null, "No verified direct alignment and no accepted image-based recovery/manual pose.");
         }
 
-        private TileWorkflowState TryRecoverFromAnchor(AlignStitchConfig config, SampleTileInfo targetTile, CapturedImageInfo target, RecoveryCandidate candidate, IDictionary<int, CapturedImageInfo> capturedByOrder, IDictionary<int, SampleTileInfo> tileByOrder, ProcessingReport report, CancellationToken ct)
+        private TileWorkflowState TryRecoverFromAnchor(
+            AlignStitchConfig config, 
+            SampleTileInfo targetTile, 
+            CapturedImageInfo target, 
+            RecoveryCandidate candidate, 
+            IDictionary<int, CapturedImageInfo> capturedByOrder, 
+            IDictionary<int, SampleTileInfo> tileByOrder, 
+            ProcessingReport report, 
+            CancellationToken ct)
         {
             CapturedImageInfo anchorCap;
             SampleTileInfo anchorTile;
@@ -179,35 +232,109 @@ namespace GerberViewer.Stitching.Alignment
                 options.MinOverlapRatio = config.MinOverlapRatio;
                 MatchResult phase;
                 using (var phaseMatcher = new PharseCorrMatcher())
-                    phase = phaseMatcher.Match(new MatchRequest { ReferenceImage = anchorRoi, MovingImage = targetRoi, Options = options, Purpose = MatchPurpose.TargetCapturedToAnchorCaptured, SampleTileId = target.OrderIndex.ToString(), OrderIndex = target.OrderIndex }, ct);
-                if (!phase.Success) { AddRecoveryEdge(report, candidate.Anchor.OrderIndex, target.OrderIndex, direction, "PharseCorrMatcher", phase.FailureReason + ": " + phase.FailureMessage, null, phase, null, overlap); return null; }
+                    phase = phaseMatcher.Match(new MatchRequest 
+                    { 
+                        ReferenceImage = anchorRoi, 
+                        MovingImage = targetRoi, 
+                        Options = options, 
+                        Purpose = MatchPurpose.TargetCapturedToAnchorCaptured, 
+                        SampleTileId = target.OrderIndex.ToString(), 
+                        OrderIndex = target.OrderIndex 
+                    }, ct);
+                if (!phase.Success) 
+                { 
+                    AddRecoveryEdge(
+                        report, 
+                        candidate.Anchor.OrderIndex, 
+                        target.OrderIndex, 
+                        direction, 
+                        "PharseCorrMatcher", 
+                        phase.FailureReason + ": " + phase.FailureMessage, 
+                        null, 
+                        phase, 
+                        null, 
+                        overlap); 
+                    return null; 
+                }
 
-                var roiToFull = RoiTransformToFull(phase.MovingToReferenceTransform, AnchorRoi(anchorMat, direction), TargetRoi(targetMat, direction));
+                var roiToFull = RoiTransformToFull(
+                    phase.MovingToReferenceTransform, 
+                    AnchorRoi(anchorMat, direction), 
+                    TargetRoi(targetMat, direction));
                 MatchResult ecc = null;
                 using (var eccMatcher = _matcherFactory.CreateEccMatcher())
-                    ecc = eccMatcher.Match(new MatchRequest { ReferenceImage = anchorMat, MovingImage = targetMat, InitialMovingToReferenceTransform = roiToFull, Options = options, Purpose = MatchPurpose.TargetCapturedToAnchorCaptured, SampleTileId = target.OrderIndex.ToString(), OrderIndex = target.OrderIndex }, ct);
+                    ecc = eccMatcher.Match(
+                        new MatchRequest 
+                        { 
+                            ReferenceImage = anchorMat, 
+                            MovingImage = targetMat, 
+                            InitialMovingToReferenceTransform = roiToFull, 
+                            Options = options, 
+                            Purpose = MatchPurpose.TargetCapturedToAnchorCaptured, 
+                            SampleTileId = target.OrderIndex.ToString(), 
+                            OrderIndex = target.OrderIndex 
+                        }, ct);
                 var targetToAnchor = ecc != null && ecc.Success ? ecc.MovingToReferenceTransform : roiToFull;
                 var expectedTx = anchorTile.ExpectedX - targetTile.ExpectedX;
                 var expectedTy = anchorTile.ExpectedY - targetTile.ExpectedY;
-                var acceptance = NeighborMatchAcceptance.Validate(phase, ecc, targetToAnchor, expectedTx, expectedTy, options, overlap);
+                var acceptance = NeighborMatchAcceptance.Validate(
+                    phase, 
+                    ecc, 
+                    targetToAnchor, 
+                    expectedTx, 
+                    expectedTy, 
+                    options, 
+                    overlap);
                 var matcherName = ecc != null && ecc.Success ? "PharseCorrMatcher+EccMatcher" : "PharseCorrMatcher";
-                AddRecoveryEdge(report, candidate.Anchor.OrderIndex, target.OrderIndex, direction, matcherName, acceptance.Reason, targetToAnchor.ToArray(), phase, ecc, overlap);
+                AddRecoveryEdge(
+                    report, 
+                    candidate.Anchor.OrderIndex, 
+                    target.OrderIndex, 
+                    direction, 
+                    matcherName, 
+                    acceptance.Reason, 
+                    targetToAnchor.ToArray(), 
+                    phase, 
+                    ecc, 
+                    overlap
+                    );
                 if (!acceptance.IsMatch) return null;
                 var global = new Transform2D(candidate.Anchor.GlobalPose).Multiply(targetToAnchor).ToArray();
-                var alignment = new SampleAlignmentResult { Success = true, Method = SampleAlignmentMethod.NccThenPyramidEcc, CapturedToSampleTransform = targetToAnchor.ToArray(), NccScore = phase.RawScore, EccCorrelation = ecc == null ? double.NaN : ecc.RawScore, PipelineStage = matcherName, PreprocessingVariant = "neighbor-overlap-" + direction, TranslationX = targetToAnchor[0, 2], TranslationY = targetToAnchor[1, 2], RotationDeg = Math.Atan2(targetToAnchor[1, 0], targetToAnchor[0, 0]) * 180 / Math.PI, Scale = 1, OverlapRatio = overlap };
+                var alignment = new SampleAlignmentResult 
+                { 
+                    Success = true, 
+                    Method = SampleAlignmentMethod.HalconNcc, 
+                    CapturedToSampleTransform = targetToAnchor.ToArray(), 
+                    NccScore = phase.RawScore, 
+                    EccCorrelation = ecc == null ? double.NaN : ecc.RawScore, 
+                    PipelineStage = matcherName, 
+                    PreprocessingVariant = "neighbor-overlap-" + direction, 
+                    TranslationX = targetToAnchor[0, 2], 
+                    TranslationY = targetToAnchor[1, 2], 
+                    RotationDeg = Math.Atan2(targetToAnchor[1, 0], targetToAnchor[0, 0]) * 180 / Math.PI, 
+                    Scale = 1, 
+                    OverlapRatio = overlap 
+                };
                 AddReport(report, target, alignment, "Recovered from anchor OrderIndex " + candidate.Anchor.OrderIndex + " via " + direction);
                 return TileWorkflowState.From(target, global, PoseSource.NeighborAlignment, alignment, acceptance.Reason);
             }
         }
 
-        private static IList<RecoveryCandidate> BuildRecoveryCandidates(CapturedImageInfo target, Dictionary<int, TileWorkflowState> solved, IList<CapturedImageInfo> ordered, bool includeSuccessor)
+        private static IList<RecoveryCandidate> BuildRecoveryCandidates(
+            CapturedImageInfo target, 
+            Dictionary<int, TileWorkflowState> solved, 
+            IList<CapturedImageInfo> ordered, 
+            bool includeSuccessor)
         {
             var result = new List<RecoveryCandidate>();
             TileWorkflowState anchor;
-            if (solved.TryGetValue(target.OrderIndex - 1, out anchor) && anchor.IsStitchable) result.Add(new RecoveryCandidate(anchor, "traversal-predecessor"));
+            if (solved.TryGetValue(target.OrderIndex - 1, out anchor) && anchor.IsStitchable) 
+                result.Add(new RecoveryCandidate(anchor, "traversal-predecessor"));
             foreach (var s in solved.Values.Where(x => x.IsStitchable && x.OrderIndex != target.OrderIndex && (Math.Abs(x.Row - target.Row) + Math.Abs(x.Column - target.Column) == 1)).OrderBy(x => Math.Abs(x.Row - target.Row) + Math.Abs(x.Column - target.Column)).ThenBy(x => x.OrderIndex))
-                if (!result.Any(r => r.Anchor.OrderIndex == s.OrderIndex)) result.Add(new RecoveryCandidate(s, "solved-grid-neighbor"));
-            if (includeSuccessor && solved.TryGetValue(target.OrderIndex + 1, out anchor) && anchor.IsStitchable && !result.Any(r => r.Anchor.OrderIndex == anchor.OrderIndex)) result.Add(new RecoveryCandidate(anchor, "traversal-successor-second-pass"));
+                if (!result.Any(r => r.Anchor.OrderIndex == s.OrderIndex)) 
+                    result.Add(new RecoveryCandidate(s, "solved-grid-neighbor"));
+            if (includeSuccessor && solved.TryGetValue(target.OrderIndex + 1, out anchor) && anchor.IsStitchable && !result.Any(r => r.Anchor.OrderIndex == anchor.OrderIndex)) 
+                result.Add(new RecoveryCandidate(anchor, "traversal-successor-second-pass"));
             return result;
         }
 
@@ -254,11 +381,61 @@ namespace GerberViewer.Stitching.Alignment
         }
 
         private static Bitmap LoadBitmap(string p) { return new Bitmap(p); }
-        private static SampleAlignmentOptions ToOptions(AlignStitchConfig c) { return new SampleAlignmentOptions { MinOverlapRatio = c.MinOverlapRatio, MaxAbsRotationDeg = c.MaxAbsRotationDeg, AllowNccOnlyAcceptance = c.AllowNccOnlyAcceptance, NccMinScore = c.NccMinScore, EccMinCorrelation = c.EccMinCorrelation, MaxTranslationPixels = c.MaxTranslationPixels, MinScale = c.MinScale, MaxScale = c.MaxScale, AllowEccFromExpectedWhenNccFails = c.AllowEccFromExpectedWhenNccFails }; }
-        private static MatcherOptions ToMatcherOptions(AlignStitchConfig c) { return new MatcherOptions { PhaseMinResponse = 0.15, MinCorrelation = c.EccMinCorrelation, MinOverlapRatio = c.MinOverlapRatio, MaxAbsRotationDeg = c.MaxAbsRotationDeg, MaxTranslationPixels = c.MaxTranslationPixels, MinScale = c.MinScale, MaxScale = c.MaxScale, PyramidLevels = 3, MaxIterations = 80, Epsilon = 1e-5 }; }
-        public static double[,] Translation(double x, double y) { return new[,] { { 1d, 0d, x }, { 0d, 1d, y }, { 0d, 0d, 1d } }; }
-        public static double[,] Multiply(double[,] a, double[,] b) { var r = new double[3, 3]; for (int y = 0; y < 3; y++) for (int x = 0; x < 3; x++) for (int k = 0; k < 3; k++) r[y, x] += a[y, k] * b[k, x]; return r; }
-        private static void AddReport(ProcessingReport report, CapturedImageInfo cap, SampleAlignmentResult r, string fallback) { report.TileReports.Add(ProcessingTileReport.From(cap, r, fallback)); if (r != null && !string.IsNullOrEmpty(r.Warning)) report.Warnings.Add(TilePrefix(cap) + r.Warning); }
+        private static SampleAlignmentOptions ToOptions(AlignStitchConfig c) 
+        { 
+            return new SampleAlignmentOptions 
+            { 
+                MinOverlapRatio = c.MinOverlapRatio, 
+                MaxAbsRotationDeg = c.MaxAbsRotationDeg, 
+                AllowNccOnlyAcceptance = c.AllowNccOnlyAcceptance, 
+                NccMinScore = c.NccMinScore, 
+                EccMinCorrelation = c.EccMinCorrelation, 
+                MaxTranslationPixels = c.MaxTranslationPixels, 
+                MinScale = c.MinScale, 
+                MaxScale = c.MaxScale, 
+                AllowEccFromExpectedWhenNccFails = c.AllowEccFromExpectedWhenNccFails 
+            }; 
+        }
+        private static MatcherOptions ToMatcherOptions(AlignStitchConfig c) 
+        { 
+            return new MatcherOptions 
+            { 
+                PhaseMinResponse = 0.15, 
+                MinCorrelation = c.EccMinCorrelation, 
+                MinOverlapRatio = c.MinOverlapRatio, 
+                MaxAbsRotationDeg = c.MaxAbsRotationDeg, 
+                MaxTranslationPixels = c.MaxTranslationPixels, 
+                MinScale = c.MinScale, 
+                MaxScale = c.MaxScale, 
+                PyramidLevels = 3, 
+                MaxIterations = 80, 
+                Epsilon = 1e-5 
+            }; 
+        }
+        public static double[,] Translation(double x, double y) 
+        { 
+            return new[,] { { 1d, 0d, x }, { 0d, 1d, y }, { 0d, 0d, 1d } }; 
+        }
+        public static double[,] Multiply(double[,] a, double[,] b) 
+        { 
+            var r = new double[3, 3]; 
+            for (int y = 0; y < 3; y++) 
+                for (int x = 0; x < 3; x++) 
+                    for (int k = 0; k < 3; k++) 
+                        r[y, x] += a[y, k] * b[k, x]; 
+            return r; 
+        }
+        private static void AddReport(
+            ProcessingReport report, 
+            CapturedImageInfo cap, 
+            SampleAlignmentResult r, 
+            string fallback
+            ) 
+        { 
+            report.TileReports.Add(ProcessingTileReport.From(cap, r, fallback)); 
+            if (r != null && !string.IsNullOrEmpty(r.Warning)) 
+                report.Warnings.Add(TilePrefix(cap) + r.Warning); 
+        }
         private static string TilePrefix(CapturedImageInfo cap) { return "OrderIndex " + cap.OrderIndex + " Row " + cap.Row + " Column " + cap.Column + ": "; }
 
         private sealed class RecoveryCandidate
